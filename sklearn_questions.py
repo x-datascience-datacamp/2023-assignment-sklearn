@@ -59,6 +59,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import unique_labels
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +83,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        check_classification_targets(y)
+        X, y = check_X_y(X, y)
+
+        if not 1 <= self.n_neighbors <= len(X):
+            raise ValueError("Invalid value for n_neighbors.")
+
+        self.classes_ = unique_labels(y)
+        self.X_ = X
+        self.y_ = y
         return self
 
     def predict(self, X):
@@ -97,8 +107,40 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+
+        X = check_array(X)
+
+        dist = pairwise_distances(X, self.X_, metric='euclidean', n_jobs=-1)
+        neighbor_idx = self.y_[np.argsort(dist)[:, :self.n_neighbors]]
+        y_pred = np.apply_along_axis(self._most_common_integer,
+                                     axis=1, arr=neighbor_idx)
+
+        return np.array(y_pred, dtype=self.classes_[0].dtype)
+
+    #def _most_common_integer(self, row):
+    #    """Helper function to find the most common integer
+    #    in an array of non-negative integers.
+
+#        Parameters
+#        ----------
+#        row: ndarray, shape (n_integers,)
+#            Array of non-negative integers
+#
+#        Returns
+#        ----------
+#        most_common: int
+#            Most common integer in the array;
+#            returns the first one found in case of ties
+#        """
+#        counts = np.bincount(row)
+#        most_common = np.argmax(counts)
+#        return most_common
+
+    def _most_common_integer(self, row):
+        unique_elements, counts = np.unique(row, return_counts=True)
+        most_frequent_index = np.argmax(counts)
+        return unique_elements[most_frequent_index]
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +157,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_classification_targets(y)
+        X, y = check_X_y(X, y)
+
+        pred = self.predict(X)
+        return np.mean(pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
