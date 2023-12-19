@@ -63,6 +63,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
+
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
@@ -121,6 +122,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def score(self, X, y):
         """Calculate the score of the prediction.
+        
         Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
@@ -157,6 +159,13 @@ class MonthlySplit(BaseCrossValidator):
     """
 
     def __init__(self, time_col='index'):
+        """Constructor for KNearestNeighbors classifier.
+
+        Parameters
+        ----------
+        n_neighbors : int, optional (default=1)
+            Number of neighbors to use for classification.
+        """
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -208,7 +217,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         X_copy = X.reset_index()
         if X_copy[self.time_col].dtype != 'datetime64[ns]':
             raise ValueError("'{}' not a datetime.".format(self.time_col))
