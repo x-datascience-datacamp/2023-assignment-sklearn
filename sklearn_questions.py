@@ -63,8 +63,7 @@ from dateutil.relativedelta import relativedelta
 
 
 def max_cnt(arr):
-    """function.
-
+    """predict function.
          Parameters
         ----------
         X : ndarray, shape (n_neighbors,)
