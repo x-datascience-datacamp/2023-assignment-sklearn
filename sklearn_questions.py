@@ -63,14 +63,16 @@ from dateutil.relativedelta import relativedelta
 
 
 def max_cnt(arr):
-    """predict function.
-         Parameters
-        ----------
-        X : ndarray, shape (n_neighbors,)
-            neighbors of a new data point
-        Returns
-        ----------
-        self : class with max frequency in an array
+    """Predict function.
+
+     Parameters
+    ----------
+    X : ndarray, shape (n_neighbors,)
+        neighbors of a new data point
+
+    Returns
+    ----------
+    label : class with max frequency in an array
     """
     unique_elements, counts = np.unique(arr, return_counts=True)
     max_count_index = np.argmax(counts)
