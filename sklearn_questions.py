@@ -122,14 +122,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def score(self, X, y):
         """Calculate the score of the prediction.
+
         Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
             Data to score on.
         y : ndarray, shape (n_samples,)
-            target values.
+            Target values.
+
         Returns
-        ----------
+        -------
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
@@ -166,7 +168,7 @@ class MonthlySplit(BaseCrossValidator):
             Column of the input DataFrame that will be used to split the data.
             This column should be of type datetime. If split is called with a
             DataFrame for which this column is not a datetime, it will raise a
-            ValueError. To use the index as column just set `time_col` to `'index'`.
+            ValueError.
         """
         self.time_col = time_col
 
