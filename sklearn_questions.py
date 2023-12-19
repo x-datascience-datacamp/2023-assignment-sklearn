@@ -119,7 +119,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             y_pred[i] = max(classe, key=classe.get)
         return y_pred
 
-
     def score(self, X, y):
         """Calculate the score of the prediction.
         Parameters
