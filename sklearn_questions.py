@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -59,6 +59,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import unique_labels
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +83,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        check_classification_targets(y)
+        X, y = check_X_y(X, y)
+
+        self.classes_ = unique_labels(y)
+        self.n_features_in_ = X.shape[1]
+        self.X_ = X
+        self.y_ = y
         return self
 
     def predict(self, X):
@@ -94,11 +102,39 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         Returns
         ----------
-        y : ndarray, shape (n_test_samples,)
+        y_pred : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+
+        X = check_array(X)
+
+        dist = pairwise_distances(X, self.X_, metric='euclidean', n_jobs=-1)
+        neighbor_idx = self.y_[np.argsort(dist)[:, :self.n_neighbors]]
+        y_pred = np.apply_along_axis(self._most_common_integer,
+                                     axis=1, arr=neighbor_idx)
+        return np.array(y_pred, dtype=self.classes_.dtype)
+
+    def _most_common_integer(self, arr):
+        """Calculate the most frequent integer in an array.
+
+        Will be used to compute the most frequent neighbor of a sample.
+
+        Parameters
+        ----------
+        arr : ndarray, shape (n_neighbors,)
+            Classes of neighbors.
+
+        Returns
+        ----------
+        most_frequent : object
+            Most frequent element in the array;
+            has the same class as the elements of the input array.
+        """
+        unique_elements, counts = np.unique(arr, return_counts=True)
+        most_frequent_index = np.argmax(counts)
+        most_frequent = unique_elements[most_frequent_index]
+        return most_frequent
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +151,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_classification_targets(y)
+        X, y = check_X_y(X, y)
+
+        pred = self.predict(X)
+        score = np.mean(pred == y)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +196,18 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col != 'index':
+            self.X_ = X.reset_index()
+            self.X_ = self.X_.set_index(self.time_col)
+        else:
+            self.X_ = X.copy()
+
+        if not is_datetime(self.X_.index):
+            raise ValueError("The reference column must be of type 'datetime'")
+
+        unique_months = self.X_.index.to_period("M").nunique()
+        n_splits = unique_months - 1
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +229,53 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+
+        period = self.X_.index.to_period('M')
+        unique_months = period.unique().sort_values()
+        indices_of_index = np.array(range(len(self.X_)))
+
+        cur_index = 0
+        cur_month = unique_months[cur_index]
+        idx_test = None
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            if i == 0:
+                idx_train = self._find_index_target_month(indices_of_index,
+                                                          period, cur_month)
+            else:
+                idx_train = idx_test
+
+            cur_index += 1
+            cur_month = unique_months[cur_index]
+
+            idx_test = self._find_index_target_month(indices_of_index,
+                                                     period, cur_month)
             yield (
                 idx_train, idx_test
             )
+
+    def _find_index_target_month(self, indices_of_index, period, target_month):
+        """Find the indices of original matrix corresponding to target month.
+
+        The indices returned correpond to elements, such that their value in
+        self.time_col corresponds to target_month.
+
+        Parameters
+        ----------
+        indices_of_index : ndarray, shape (X.shape[0],)
+            Range from 0 to X.shape[0]
+        period: pandas.core.indexes.period.PeriodIndex, shape (X.shape[0],)
+            Dates in self.X_.index in format 'YYYY-MM'
+        target_month: pandas._libs.tslibs.period.Period
+            Month target, looks like Period('YYYY-MM', 'M')
+
+        Returns
+        ----------
+        indices_target_month : ndarray, shape (n,)
+            Indices of original matrix with a
+            date corresponding to target_month.
+            Can be empty.
+        """
+        mask = period == target_month
+        indices_target_month = indices_of_index[mask]
+        return indices_target_month
