@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
+import datetime as date
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -59,6 +59,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from collections import Counter
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +83,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X_train, y_train = check_X_y(X, y)
+        check_classification_targets(y_train)
+        self.X_train_ = X_train
+        self.y_train_ = y_train
+
+        self.classes_ = np.unique(y_train)
+        self.n_classes_ = len(self.classes_)
+        self.n_features_in_ = self.X_train_.shape[1]
+        # Return the classifier
         return self
 
     def predict(self, X):
@@ -97,7 +107,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        # Check is fit had been called
+        check_is_fitted(self)
+        # Input validation
+        X = check_array(X)
+        # Compute the pairwise distances between X and the training data
+        dist = pairwise_distances(X, self.X_train_)
+        # Get the indices of the k closest neighbors
+        idx = np.argsort(dist, axis=1)[:, : self.n_neighbors]
+        # Get the corresponding labels
+        y_pred = self.y_train_[idx]
+        # Get the most common label
+        y_pred = np.array([Counter(x).most_common(1)[0][0] for x in y_pred])
+
+        # Return the predicted labels
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +138,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # Check is fit had been called
+        check_is_fitted(self)
+        # Input validation
+        X, y = check_X_y(X, y)
+        # Compute the prediction
+        y_pred = self.predict(X)
+        # Return the accuracy
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -134,7 +164,7 @@ class MonthlySplit(BaseCrossValidator):
         To use the index as column just set `time_col` to `'index'`.
     """
 
-    def __init__(self, time_col='index'):  # noqa: D107
+    def __init__(self, time_col="index"):  # noqa: D107
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -155,7 +185,22 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == "index":
+            if X.index.dtype == "datetime64[ns]":
+                self.months = np.unique(X.index.strftime("%m/%Y")).tolist()
+                self.n_splits = len(self.months) - 1
+            else:
+                raise ValueError("Column type is not datetime")
+
+        else:
+            if X[self.time_col].dtype == "datetime64[ns]":
+                self.months = np.unique(
+                    X[self.time_col].dt.strftime("%m/%Y")
+                    ).tolist()
+                self.n_splits = len(self.months) - 1
+            else:
+                raise ValueError("Column type is not datetime")
+        return self.n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -178,11 +223,50 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
-        for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+        if self.time_col == "index":
+            if X.index.dtype == "datetime64[ns]":
+                n_splits = self.get_n_splits(
+                    X, y, groups
+                    )
+                self.months = sorted(self.months,
+                                     key=lambda x: date.datetime.strptime(
+                                         x, "%m/%Y"
+                                         )
+                                     )
+                for i in range(n_splits):
+                    idx_train = (
+                        X.index.strftime("%m/%Y") == self.months[i]
+                        ).tolist()
+                    idx_train = [i for i, x in enumerate(idx_train) if x]
+                    idx_test = (
+                        X.index.strftime("%m/%Y") == self.months[i + 1]
+                    ).tolist()
+                    idx_test = [i for i, x in enumerate(idx_test) if x]
+                    yield (idx_train, idx_test)
+            else:
+                raise ValueError("Column type is not datetime")
+
+        else:
+            if X[self.time_col].dtype == "datetime64[ns]":
+                n_splits = self.get_n_splits(
+                    X, y, groups
+                    )
+                self.months = sorted(
+                    self.months, key=lambda x: date.datetime.strptime(
+                        x, "%m/%Y"
+                        )
+                )
+                for i in range(n_splits):
+                    idx_train = (
+                        X[self.time_col].dt.strftime(
+                            "%m/%Y") == self.months[i]
+                    ).tolist()
+                    idx_train = [i for i, x in enumerate(idx_train) if x]
+                    idx_test = (
+                        X[self.time_col].dt.strftime(
+                            "%m/%Y") == self.months[i + 1]
+                    ).tolist()
+                    idx_test = [i for i, x in enumerate(idx_test) if x]
+                    yield (idx_train, idx_test)
+            else:
+                raise ValueError("Column type is not datetime")
