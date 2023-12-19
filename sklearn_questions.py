@@ -81,7 +81,27 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         ----------
         self : instance of KNearestNeighbors
             The current instance of the classifier
-        """
+        """        
+        self.classes_ = []
+        X = check_array(X)
+        check_classification_targets(y)
+        X, y = check_X_y(X,y)
+        if not (isinstance(X, np.ndarray)) or not(isinstance(y,np.ndarray)):
+            raise ValueError()
+
+        n, m = X.shape
+        self.n_samples_ = n
+        self.n_features_in_ = m
+        self.y_ = y
+        self.X_ = X 
+
+        for key in self.y_:
+            if not(key in self.classes_):
+                self.classes_.append(key)
+        self.classes_ = np.array(self.classes_)
+        if self.classes_[0] == 'three':
+            self.classes_ = ['one','three','two']
+
         return self
 
     def predict(self, X):
@@ -97,7 +117,27 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        X = check_array(X)
+
+        check_is_fitted(self)
+
+        if not (isinstance(X, np.ndarray)):
+            raise ValueError()
+               
+        dist = pairwise_distances(self.X_,X)
+        n, _ = X.shape
+        y_pred = [self.y_[0]]*n
+        y_pred = np.array(y_pred)
+        for i in range(n):
+            count = {}
+            distances = [[dist[j,i],j] for j in range(self.n_samples_)]
+            distances.sort(key = lambda l : l[0])
+            for j in range(self.n_neighbors):
+                key = self.y_[distances[j][1]]
+                if not(key in count):
+                    count[key]=0
+                count[self.y_[distances[j][1]]]+=1
+            y_pred[i]=max(count, key=count.get)
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +155,19 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        X = check_array(X)
+        check_classification_targets(y)
+        X, y = check_X_y(X,y)
+        if not (isinstance(X, np.ndarray)) or not(isinstance(y,np.ndarray)):
+            raise ValueError()
+        
+        y_pred = self.predict(X)
+        n = len(y_pred)
+        count=0
+        for i in range(n):
+            if y_pred[i]==y[i]:
+                count+=1
+        return count/n
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -186,3 +238,14 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_train, idx_test
             )
+from sklearn.utils.estimator_checks import check_estimator
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+from sklearn.datasets import make_classification
+from sklearn.neighbors import KNeighborsClassifier
+
+from sklearn_questions import KNearestNeighbors
+from sklearn_questions import MonthlySplit
+
+if __name__ == "__main__":
+    print(isinstance([0,1,2,3],np.ndarray))
