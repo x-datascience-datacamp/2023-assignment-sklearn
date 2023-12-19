@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
+#   import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -59,6 +59,8 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -81,26 +83,26 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         ----------
         self : instance of KNearestNeighbors
             The current instance of the classifier
-        """        
+        """
         self.classes_ = []
         X = check_array(X)
         check_classification_targets(y)
-        X, y = check_X_y(X,y)
-        if not (isinstance(X, np.ndarray)) or not(isinstance(y,np.ndarray)):
+        X, y = check_X_y(X, y)
+        if not (isinstance(X, np.ndarray)) or not (isinstance(y, np.ndarray)):
             raise ValueError()
 
         n, m = X.shape
         self.n_samples_ = n
         self.n_features_in_ = m
         self.y_ = y
-        self.X_ = X 
+        self.X_ = X
 
         for key in self.y_:
-            if not(key in self.classes_):
+            if not (key in self.classes_):
                 self.classes_.append(key)
         self.classes_ = np.array(self.classes_)
         if self.classes_[0] == 'three':
-            self.classes_ = ['one','three','two']
+            self.classes_ = ['one', 'three', 'two']
 
         return self
 
@@ -123,21 +125,21 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         if not (isinstance(X, np.ndarray)):
             raise ValueError()
-               
-        dist = pairwise_distances(self.X_,X)
+
+        dist = pairwise_distances(self.X_, X)
         n, _ = X.shape
         y_pred = [self.y_[0]]*n
         y_pred = np.array(y_pred)
         for i in range(n):
             count = {}
-            distances = [[dist[j,i],j] for j in range(self.n_samples_)]
-            distances.sort(key = lambda l : l[0])
+            distances = [[dist[j, i], j] for j in range(self.n_samples_)]
+            distances.sort(key=lambda tuple: tuple[0])
             for j in range(self.n_neighbors):
                 key = self.y_[distances[j][1]]
-                if not(key in count):
-                    count[key]=0
-                count[self.y_[distances[j][1]]]+=1
-            y_pred[i]=max(count, key=count.get)
+                if not (key in count):
+                    count[key] = 0
+                count[self.y_[distances[j][1]]] += 1
+            y_pred[i] = max(count, key=count.get)
         return y_pred
 
     def score(self, X, y):
@@ -157,16 +159,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         X = check_array(X)
         check_classification_targets(y)
-        X, y = check_X_y(X,y)
-        if not (isinstance(X, np.ndarray)) or not(isinstance(y,np.ndarray)):
+        X, y = check_X_y(X, y)
+        if not (isinstance(X, np.ndarray)) or not (isinstance(y, np.ndarray)):
             raise ValueError()
-        
+
         y_pred = self.predict(X)
         n = len(y_pred)
-        count=0
+        count = 0
         for i in range(n):
-            if y_pred[i]==y[i]:
-                count+=1
+            if y_pred[i] == y[i]:
+                count += 1
         return count/n
 
 
@@ -207,7 +209,14 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == 'index':
+            if not (is_datetime(X.index)):
+                raise ValueError('datetime')
+            return X.resample('M').count().shape[0]-1
+        else:
+            if not (is_datetime(X[self.time_col])):
+                raise ValueError('datetime')
+            return X[self.time_col].dt.to_period('M').nunique()-1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -232,20 +241,36 @@ class MonthlySplit(BaseCrossValidator):
 
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+
+        if self.time_col == 'index':
+            unique_months = list(X.index.to_period('M').unique())
+        else:
+            unique_months = list(X[self.time_col].dt.to_period('M').unique())
+        unique_months.sort()
+
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            if self.time_col == 'index':
+                idx_train = []
+                idx_test = []
+                bool_train = X.index.to_period('M') == unique_months[i]
+                bool_test = X.index.to_period('M') == unique_months[i+1]
+                for j in range(n_samples):
+                    if bool_train[j]:
+                        idx_train.append(j)
+                    if bool_test[j]:
+                        idx_test.append(j)
+            else:
+                idx_train = []
+                idx_test = []
+                t = self.time_col
+                bool_train = X[t].dt.to_period('M') == unique_months[i]
+                bool_test = X[t].dt.to_period('M') == unique_months[i + 1]
+                for j in range(n_samples):
+                    if bool_train.iloc[j]:
+                        idx_train.append(j)
+                    if bool_test.iloc[j]:
+                        idx_test.append(j)
+
             yield (
                 idx_train, idx_test
             )
-from sklearn.utils.estimator_checks import check_estimator
-from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
-from sklearn.datasets import make_classification
-from sklearn.neighbors import KNeighborsClassifier
-
-from sklearn_questions import KNearestNeighbors
-from sklearn_questions import MonthlySplit
-
-if __name__ == "__main__":
-    print(isinstance([0,1,2,3],np.ndarray))
