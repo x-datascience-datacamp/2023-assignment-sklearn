@@ -185,7 +185,6 @@ class MonthlySplit(BaseCrossValidator):
             self.X_ = X.reset_index().set_index(self.time_col,
                                                 verify_integrity=True)
         number_month = self.X_.index.to_period('M').nunique()-1
-
         return number_month
 
     def split(self, X, y, groups=None):
@@ -208,7 +207,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
         period = self.X_.index.to_period('M')
