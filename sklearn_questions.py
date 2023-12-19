@@ -179,7 +179,8 @@ class MonthlySplit(BaseCrossValidator):
             X_copy = X_copy.reset_index()
         if X_copy[self.time_col].dtype != 'datetime64[ns]':
             raise ValueError(f"'{self.time_col}' is not a datetime column.")
-        date_splits = X_copy.sort_values(by=self.time_col)[self.time_col].dt.month.diff().ne(0)
+        date_splits = X_copy.sort_values(by=self.time_col)[self.time_col] \
+    .dt.month.diff().ne(0)
         self.date_spliter = X_copy[date_splits]
         return date_splits.sum() - 1
 
