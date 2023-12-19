@@ -222,7 +222,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         if self.time_col == "index":
             if X.index.dtype == "datetime64[ns]":
                 n_splits = self.get_n_splits(
