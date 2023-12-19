@@ -70,7 +70,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """Fitting function.
 
-         Parameters
+        Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
             Data to train the model.
@@ -82,6 +82,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.X_ = X
+        self.y_ = y
+        self.classes_ = np.unique(self.y_)
+        self.n_features_in_ = self.X_.shape[1]
         return self
 
     def predict(self, X):
@@ -97,7 +103,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+        distance = pairwise_distances(X, self.X_)
+        nearest_neighbors = np.argsort(distance, axis=1)[:, :self.n_neighbors]
+        y_pred = self.y_[nearest_neighbors]
+        y_pred = np.apply_along_axis(lambda x: np.argmax(np.bincount(x)),
+                                     axis=1, arr=y_pred)
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +127,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        predictions = self.predict(X)
+        accuracy = np.mean(predictions == y)
+        return accuracy
 
 
 class MonthlySplit(BaseCrossValidator):
