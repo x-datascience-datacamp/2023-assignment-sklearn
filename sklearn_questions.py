@@ -113,8 +113,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             )
         k_closest_idx = closest_idx[:, : self.n_neighbors]
         k_closest_y_values = self.y_train_[k_closest_idx]
-        y_pred = [max(Counter(value), key=Counter(value).get) 
-                  for value in k_closest_y_values]
+        y_pred = [
+            max(Counter(v), key=Counter(v).get) for v in k_closest_y_values
+            ]
         return np.array(y_pred)
 
     def score(self, X, y):
