@@ -58,7 +58,11 @@ from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn.metrics.pairwise import pairwise_distances
+
+# from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import unique_labels
+
+from dateutil.relativedelta import relativedelta
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,7 +86,31 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+
+        self.X_ = X
+        self.y_ = y
+        self.dtype_ = y.dtype
+
+        self.n_features_in_ = X.shape[1]
+        self.classes_ = unique_labels(y)
+
         return self
+
+    def distance_func(x1: np.ndarray, x2: np.ndarray) -> np.float64:
+        """Compute the euclidian distance.
+
+        Parameters
+        -----------
+        x1,x2 : one dimensionnal vectors, shape (n_features)
+            The two vectors for which we calculate the distance
+
+        Returns
+        -----------
+        res : the distance between the two vectors.
+        """
+        return np.linalg.norm(x1 - x2)
 
     def predict(self, X):
         """Predict function.
@@ -97,7 +125,35 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+
+        y_pred = np.empty(X.shape[0], dtype=self.dtype_)
+
+        for i, X_predict in enumerate(X):
+            # the euclidian distance for each sample of X_train
+            distances = np.array(
+                [
+                    KNearestNeighbors.distance_func(X_predict, X_train)
+                    for X_train in self.X_
+                ]
+            )
+
+            # indices for each sample sorted by its distance (the k-nearest)
+            indexes_sort = np.argsort(distances)[: self.n_neighbors]
+
+            # the labels of the nearest neighbors
+            labels_nn = self.y_[indexes_sort]
+
+            unique, counts = np.unique(labels_nn, return_counts=True)
+
+            index_max_counts = np.argmax(counts)
+
+            # the value with the maximum occurrence
+            max_occurence = unique[index_max_counts]
+
+            y_pred[i] = max_occurence
+
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +171,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+
+        y_pred = self.predict(X)
+
+        return (y == y_pred).mean()
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -134,7 +196,7 @@ class MonthlySplit(BaseCrossValidator):
         To use the index as column just set `time_col` to `'index'`.
     """
 
-    def __init__(self, time_col='index'):  # noqa: D107
+    def __init__(self, time_col="index"):  # noqa: D107
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -155,9 +217,39 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if not (
+            isinstance(X, pd.core.frame.DataFrame)
+            or isinstance(X, pd.core.series.Series)
+        ):
+            raise TypeError(
+                f"The type of X ({type(X)}) is not consistent \
+                      with a pandas dataframe or series"
+            )
 
-    def split(self, X, y, groups=None):
+        if self.time_col == "index":
+            if not (
+                isinstance(X.index, pd.core.indexes.datetimes.DatetimeIndex)
+            ):
+                raise ValueError("datetime")
+
+        else:
+            if X[self.time_col].dtype != "<M8[ns]":
+                raise ValueError("datetime")
+            else:
+                X.set_index(self.time_col, inplace=True, drop=False)
+                self.time_col = "index"
+
+        date = X.index
+
+        self.date_min_ = date.min()
+        self.date_max_ = date.max()
+
+        delta = relativedelta(self.date_max_, self.date_min_)
+        num_months = delta.years * 12 + delta.months
+
+        return num_months
+
+    def split(self, X, y=None, groups=None):
         """Generate indices to split data into training and test set.
 
         Parameters
@@ -177,12 +269,36 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
-        for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
+        if not (
+            isinstance(X, pd.core.frame.DataFrame)
+            or isinstance(X, pd.core.series.Series)
+        ):
+            raise TypeError(
+                f"The type of X ({type(X)}) is not consistent \
+                     with a pandas dataframe or series"
             )
+
+        if self.time_col == "index":
+            if not (
+                isinstance(X.index, pd.core.indexes.datetimes.DatetimeIndex)
+            ):
+                raise ValueError("datetime")
+
+        else:
+            if X[self.time_col].dtype != "<M8[ns]":
+                raise ValueError("datetime")
+            else:
+                X.set_index(self.time_col, inplace=True, drop=False)
+                self.time_col = "index"
+
+        n_splits = self.get_n_splits(X, y, groups)
+
+        date_min = self.date_min_
+
+        for i in range(n_splits):
+            train_timestamp = date_min + pd.DateOffset(months=i)
+            test_timestamp = train_timestamp + pd.DateOffset(months=1)
+
+            idx_train = np.where(X.index == train_timestamp)[0]
+            idx_test = np.where(X.index == test_timestamp)[0]
+            yield (idx_train, idx_test)
