@@ -59,7 +59,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
-
+from sklearn.utils.multiclass import unique_labels
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
@@ -82,6 +82,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        y = check_array(y, ensure_2d=False, dtype=None)
+        X = check_array(X)
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.y_train_ = y
+        self.X_train_ = X
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -97,8 +105,22 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+    
+        check_is_fitted(self)
+        X = check_array(X)
+        dist = pairwise_distances(X, self.X_train_)
+        y_pred = np.zeros(X.shape[0], dtype=self.y_train_.dtype)
+        for i in range(X.shape[0]):
+            idx = np.argsort(dist[i])
+            classe = {}
+            for ele in (self.y_train_[idx[:self.n_neighbors]]):
+                if ele in classe:
+                    classe[ele] += 1
+                else:
+                    classe[ele] = 1
+            y_pred[i] = max(classe, key=classe.get)
         return y_pred
+
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +137,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        check_classification_targets(y)
+        y_pred = self.predict(X)
+        check_classification_targets(y_pred)
+        score = np.mean(y == y_pred)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -134,7 +161,7 @@ class MonthlySplit(BaseCrossValidator):
         To use the index as column just set `time_col` to `'index'`.
     """
 
-    def __init__(self, time_col='index'):  # noqa: D107
+    def __init__(self, time_col='index'):
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -155,9 +182,18 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X_copy = X.copy(deep=True)
+        if self.time_col == 'index':
+            X_copy = X.reset_index()
+        if X_copy[self.time_col].dtype != 'datetime64[ns]':
+            raise ValueError("'{}' not a datetime.".format(self.time_col))
+        X_sorted = X_copy.sort_values(by=self.time_col)
+        X_sorted["Month"] = X_sorted[self.time_col].dt.month
+        date_spliter = X_sorted[X_sorted["Month"].diff() != 0]
+        self.date_spliter = date_spliter
+        return len(date_spliter)-1
 
-    def split(self, X, y, groups=None):
+    def split(self, X, y=None, groups=None):
         """Generate indices to split data into training and test set.
 
         Parameters
@@ -178,11 +214,19 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
+        X_copy = X.reset_index()
+        if X_copy[self.time_col].dtype != 'datetime64[ns]':
+            raise ValueError("'{}' not a datetime.".format(self.time_col))
+        n_splits = self.get_n_splits(X_copy, y, groups)
+        g_test = X_copy.sort_values(by=self.time_col).groupby(
+                pd.Grouper(
+                    key=self.time_col,
+                    freq="M"))
+        dfs = [group.index for _, group in g_test]
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = list(dfs[i])
+            idx_test = list(dfs[i+1])
             yield (
                 idx_train, idx_test
             )
+
