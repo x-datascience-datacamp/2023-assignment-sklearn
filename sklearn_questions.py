@@ -84,9 +84,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         X, y = check_X_y(X, y)
         check_classification_targets(y)
+        self.n_features_in_ = X.shape[1]
+        self.classes_ = np.unique(y)
         self.X_ = X
         self.y_ = y
-        self.classes_ = np.unique(y)
         return self
 
     def predict(self, X):
@@ -104,12 +105,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self)
         X = check_array(X)
-        y_pred = np.zeros(X.shape[0])
-        distances = pairwise_distances(X, axis=1)
-        for i, dist in enumerate(distances):
-            closest_indices = np.argsort(dist)[:self.n_neighbors]
-            closest_labels = self.y_[closest_indices]
-            y_pred[i] = np.argmax(np.bincount(closest_labels))
+        y_pred = []
+        for i, x in enumerate(X):
+            distances = pairwise_distances(x.reshape(1, -1), self.X_)
+            idx = np.argsort(distances, axis=1)[0][:self.n_neighbors]
+            values, counts = np.unique(self.y_[idx], return_counts=True)
+            y_pred.append(values[np.argmax(counts)])
+        y_pred = np.array(y_pred)
         return y_pred
 
     def score(self, X, y):
@@ -127,63 +129,54 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        check_is_fitted(self)
-        X = check_array(X)
-        y = check_array(y)
-        predicted_labels = self.predict(X)
-        score = np.mean(y, predicted_labels)
-        return score
+        return np.mean(y == self.predict(X))
 
-    class MonthlySplit(BaseCrossValidator):
-        """CrossValidator based on monthly split.
 
-        Split data based on the given `time_col` (or default to index). Each
-        split corresponds to one month of data for
-        the training and the next month of
-        data for the test.
+class MonthlySplit(BaseCrossValidator):
+    """CrossValidator based on monthly split.
+
+    Split data based on the given `time_col` (or default to index). Each
+    split corresponds to one month of data for
+    the training and the next month of
+     data for the test.
+
+    Parameters
+    ----------
+    time_col : str, defaults to 'index'
+        Column of the input DataFrame that will be used to split the data.
+        This column should be of type datetime. If split is called with
+        a DataFrame for which this column is not a datetime,
+        it will raise a ValueError. To use the index as column just set
+        `time_col` to `'index'`.
+    """
+
+    def __init__(self, time_col='index'):  # noqa: D107
+        self.time_col = time_col
+
+    def get_n_splits(self, X, y=None, groups=None):
+        """Return the number of splitting iterations in thecross-validator.
 
         Parameters
         ----------
-        time_col : str, defaults to 'index'
-            Column of the input DataFrame that will be used to split the data.
-            This column should be of type datetime. If split is called with
-            a DataFrame for which this column is not a datetime,
-            it will raise a ValueError. To use the index as column just set
-            `time_col` to `'index'`.
-        """
+        X : array-like of shape (n_samples, n_features)
+        Training data, where `n_samples` is the number of samples
+        and `n_features` is the number of features.
+        y : array-like of shape (n_samples,)
+        Always ignored, exists for compatibility.
+        groups : array-like of shape (n_samples,)
+        Always ignored, exists for compatibility.
 
-        def __init__(self, time_col='index'):  # noqa: D107
-            self.time_col = time_col
-
-        def get_n_splits(self, X, y=None, groups=None):
-            """Return the number of splitting iterations in the
-            cross-validator.
-
-            Parameters
-            ----------
-            X : array-like of shape (n_samples, n_features)
-                Training data, where `n_samples` is the number of samples
-                and `n_features` is the number of features.
-            y : array-like of shape (n_samples,)
-                Always ignored, exists for compatibility.
-            groups : array-like of shape (n_samples,)
-                Always ignored, exists for compatibility.
-
-            Returns
+        Returns
             -------
-            n_splits : int
-                The number of splits.
-            """
-            if self.time_col == 'index':
-                X = check_array(X)
-                time_column = pd.RangeIndex(start=0, stop=X.shape[0])
-            else:
-                if self.time_col not in X.columns:
-                    raise ValueError(
-                        f"'{self.time_col}' not found in X columns.")
-                time_column = X[self.time_col]
-            uni = pd.to_datetime(time_column).dt.to_period('M').nunique()
-            return max(uni - 1, 0)
+        n_splits : int
+        The number of splits.
+        """
+        X = X.reset_index()
+        if not isinstance(X[self.time_col].iloc[0], pd.Timestamp):
+            raise ValueError('datetime')
+        date_month_period = X[self.time_col].dt.to_period('M')
+        unique_months = date_month_period.nunique()
+        return unique_months-1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -206,11 +199,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The testing set indices for that split.
         """
 
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index()
+        date = X[self.time_col]
+        date = date.dt.to_period('M')
+        list_of_date_sorted = np.sort(date.unique())
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = X[date == list_of_date_sorted[i]].index.to_numpy()
+            idx_test = X[date == list_of_date_sorted[i+1]].index.to_numpy()
             yield (
                 idx_train, idx_test
             )
