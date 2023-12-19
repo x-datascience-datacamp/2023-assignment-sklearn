@@ -48,7 +48,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -59,6 +58,9 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from pandas.api.types import is_datetime64_any_dtype
+
+from scipy import stats
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -70,7 +72,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """Fitting function.
 
-         Parameters
+        Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
             Data to train the model.
@@ -82,6 +84,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.X_ = X
+        self.y_ = y
+        self.classes_ = np.unique(self.y_)
+        self.n_features_in_ = self.X_.shape[1]
         return self
 
     def predict(self, X):
@@ -97,7 +105,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+        distance = pairwise_distances(X, self.X_)
+        index = np.argpartition(distance, self.n_neighbors, axis=1)
+        labels = self.y_[index[:, :self.n_neighbors]]
+        y_pred = stats.mode(labels, axis=1, keepdims=False)[0].squeeze()
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +128,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        y_pred = self.predict(X)
+        accuracy = np.sum(y == y_pred) / y.shape
+        return accuracy
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +171,17 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == 'index':
+            if not is_datetime64_any_dtype(X.index):
+                raise ValueError('Column is not a datetime')
+            self.X_ = X.copy()
+        else:
+            if not is_datetime64_any_dtype(X[self.time_col]):
+                raise ValueError('Column is not a datetime')
+            self.X_ = X.reset_index().set_index(self.time_col,
+                                                verify_integrity=True)
+        n_splits = len(self.X_.index.to_period('M').unique()) - 1
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +203,14 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        period = self.X_.index.to_period('M')
+        months = period.unique().sort_values()
+        indexes = np.array(range(n_samples))
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            mask_train = (period == months[i])
+            mask_test = (period == months[i + 1])
+            idx_train = indexes[mask_train]
+            idx_test = indexes[mask_test]
+            yield (idx_train, idx_test)
