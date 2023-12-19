@@ -82,6 +82,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.X_ = X
+        self.y_ = y
+        self.classes_ = np.unique(y)
         return self
 
     def predict(self, X):
@@ -97,7 +102,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
+        check_is_fitted(self)
+        X = check_array(X)
         y_pred = np.zeros(X.shape[0])
+        distances = pairwise_distances(X, axis=1)
+        for i, dist in enumerate(distances):
+            closest_indices = np.argsort(dist)[:self.n_neighbors]
+            closest_labels = self.y_[closest_indices]
+            y_pred[i] = np.argmax(np.bincount(closest_labels))
         return y_pred
 
     def score(self, X, y):
@@ -115,47 +127,63 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        X = check_array(X)
+        y = check_array(y)
+        predicted_labels = self.predict(X)
+        score = np.mean(y, predicted_labels)
+        return score
 
+    class MonthlySplit(BaseCrossValidator):
+        """CrossValidator based on monthly split.
 
-class MonthlySplit(BaseCrossValidator):
-    """CrossValidator based on monthly split.
-
-    Split data based on the given `time_col` (or default to index). Each split
-    corresponds to one month of data for the training and the next month of
-    data for the test.
-
-    Parameters
-    ----------
-    time_col : str, defaults to 'index'
-        Column of the input DataFrame that will be used to split the data. This
-        column should be of type datetime. If split is called with a DataFrame
-        for which this column is not a datetime, it will raise a ValueError.
-        To use the index as column just set `time_col` to `'index'`.
-    """
-
-    def __init__(self, time_col='index'):  # noqa: D107
-        self.time_col = time_col
-
-    def get_n_splits(self, X, y=None, groups=None):
-        """Return the number of splitting iterations in the cross-validator.
+        Split data based on the given `time_col` (or default to index). Each
+        split corresponds to one month of data for
+        the training and the next month of
+        data for the test.
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
-            Training data, where `n_samples` is the number of samples
-            and `n_features` is the number of features.
-        y : array-like of shape (n_samples,)
-            Always ignored, exists for compatibility.
-        groups : array-like of shape (n_samples,)
-            Always ignored, exists for compatibility.
-
-        Returns
-        -------
-        n_splits : int
-            The number of splits.
+        time_col : str, defaults to 'index'
+            Column of the input DataFrame that will be used to split the data.
+            This column should be of type datetime. If split is called with
+            a DataFrame for which this column is not a datetime,
+            it will raise a ValueError. To use the index as column just set
+            `time_col` to `'index'`.
         """
-        return 0
+
+        def __init__(self, time_col='index'):  # noqa: D107
+            self.time_col = time_col
+
+        def get_n_splits(self, X, y=None, groups=None):
+            """Return the number of splitting iterations in the
+            cross-validator.
+
+            Parameters
+            ----------
+            X : array-like of shape (n_samples, n_features)
+                Training data, where `n_samples` is the number of samples
+                and `n_features` is the number of features.
+            y : array-like of shape (n_samples,)
+                Always ignored, exists for compatibility.
+            groups : array-like of shape (n_samples,)
+                Always ignored, exists for compatibility.
+
+            Returns
+            -------
+            n_splits : int
+                The number of splits.
+            """
+            if self.time_col == 'index':
+                X = check_array(X)
+                time_column = pd.RangeIndex(start=0, stop=X.shape[0])
+            else:
+                if self.time_col not in X.columns:
+                    raise ValueError(
+                        f"'{self.time_col}' not found in X columns.")
+                time_column = X[self.time_col]
+            uni = pd.to_datetime(time_column).dt.to_period('M').nunique()
+            return max(uni - 1, 0)
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
