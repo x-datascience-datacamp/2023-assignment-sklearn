@@ -86,7 +86,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-
         if X is None or y is None:
             raise ValueError("Input data cannot be None.")
 
@@ -113,7 +112,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-
         check_is_fitted(self)
         X = check_array(X)
 
@@ -145,7 +143,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-
         y_pred = self.predict(X)
         score = np.mean(y_pred == y)
 
@@ -189,7 +186,6 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-
         X = X.reset_index()
 
         if not isinstance(X[self.time_col][0], pd.Timestamp):
@@ -221,7 +217,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         X = X.reset_index()
 
         n_splits = self.get_n_splits(X, y, groups)
