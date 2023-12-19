@@ -58,7 +58,8 @@ from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn.metrics.pairwise import pairwise_distances
+
+# from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.utils.multiclass import unique_labels
 
 from dateutil.relativedelta import relativedelta
@@ -97,6 +98,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         return self
 
+    def distance_func(x1, x2):
+        return np.linalg.norm(x1 - x2)
+
     def predict(self, X):
         """Predict function.
 
@@ -115,15 +119,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         y_pred = np.empty(X.shape[0], dtype=self.dtype_)
 
-        distance_func = lambda x1, x2: np.linalg.norm(x1 - x2)
-
         for i, X_predict in enumerate(X):
             # the euclidian distance for each sample of X_train
             distances = np.array(
-                [distance_func(X_predict, X_train) for X_train in self.X_]
+                [
+                    KNearestNeighbors.distance_func(X_predict, X_train)
+                    for X_train in self.X_
+                ]
             )
 
-            # the indices for each sample sorted by its distance (the k-nearest)
+            # indices for each sample sorted by its distance (the k-nearest)
             indexes_sort = np.argsort(distances)[: self.n_neighbors]
 
             # the labels of the nearest neighbors
@@ -201,13 +206,19 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        if not (type(X) in [pd.core.frame.DataFrame, pd.core.series.Series]):
+        if not (
+            isinstance(X, pd.core.frame.DataFrame)
+            or isinstance(X, pd.core.series.Series)
+        ):
             raise TypeError(
-                f"The type of X ({type(X)}) is not consistent with a pandas dataframe or series"
+                f"The type of X ({type(X)}) is not consistent \
+                      with a pandas dataframe or series"
             )
 
         if self.time_col == "index":
-            if type(X.index) != pd.core.indexes.datetimes.DatetimeIndex:
+            if not (
+                isinstance(X.index, pd.core.indexes.datetimes.DatetimeIndex)
+            ):
                 raise ValueError("datetime")
 
         else:
@@ -247,13 +258,19 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        if not (type(X) in [pd.core.frame.DataFrame, pd.core.series.Series]):
+        if not (
+            isinstance(X, pd.core.frame.DataFrame)
+            or isinstance(X, pd.core.series.Series)
+        ):
             raise TypeError(
-                f"The type of X ({type(X)}) is not consistent with a pandas dataframe or series"
+                f"The type of X ({type(X)}) is not consistent \
+                     with a pandas dataframe or series"
             )
 
         if self.time_col == "index":
-            if type(X.index) != pd.core.indexes.datetimes.DatetimeIndex:
+            if not (
+                isinstance(X.index, pd.core.indexes.datetimes.DatetimeIndex)
+            ):
                 raise ValueError("datetime")
 
         else:
