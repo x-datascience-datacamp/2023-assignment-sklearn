@@ -82,6 +82,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+
+        X, y = check_X_y(X, y)
+    
+        # Check the targets
+        check_classification_targets(y)
+
+        # Store the training data and labels
+        self.X_ = X
+        self.y_ = y
+
         return self
 
     def predict(self, X):
@@ -97,7 +107,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+
+        # Input validation
+        X = check_array(X)
+
+        # Compute distances between X and self.X_
+        distances = pairwise_distances(X, self.X_)
+
+        # Find the index of the nearest neighbor
+        nearest_neighbor_idx = np.argmin(distances, axis=1)
+
+        # Predict the class label of the nearest neighbor
+        y_pred = self.y_[nearest_neighbor_idx]
+
         return y_pred
 
     def score(self, X, y):
