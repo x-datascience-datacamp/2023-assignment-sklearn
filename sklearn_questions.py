@@ -241,21 +241,19 @@ class MonthlySplit(BaseCrossValidator):
             )
         first_date = _X[self.time_col].min()
         first_month, first_year = (
-            first_date.month - 1,
+            first_date.month - 1,  # index months from 0
             first_date.year,
-        )  # index months from 0
+        )
         for i in range(n_splits):
             train_month = (first_month + i) % 12 + 1
             train_year = first_year + (first_month + i) // 12
-            test_month = (first_month + i + 1) % 12 + 1
-            test_year = first_year + (first_month + i + 1) // 12
             idx_train = _X.loc[
                 (_X[self.time_col].dt.month == train_month)
                 & (_X[self.time_col].dt.year == train_year)
             ].index.values
             idx_test = _X.loc[
-                (_X[self.time_col].dt.month == test_month)
-                & (_X[self.time_col].dt.year == test_year)
+                (_X[self.time_col].dt.month == (train_month % 12 + 1))
+                & (_X[self.time_col].dt.year == train_year + train_month // 12)
             ].index.values
 
             yield (idx_train, idx_test)
