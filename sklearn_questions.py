@@ -65,6 +65,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
+        if not isinstance(n_neighbors, int) or n_neighbors <= 0:
+            raise ValueError("n_neighbors must be a positive integer.")
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -82,6 +84,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        if X is None or y is None:
+            raise ValueError("Input data cannot be None.")
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
+        self.X_ = X
+        self.y_ = y
         return self
 
     def predict(self, X):
@@ -97,8 +107,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+        X = check_array(X)
+        y_pred = []
+        for i in range(X.shape[0]):
+            dist = pairwise_distances(X[i].reshape(1, -1), self.X_)
+            dist = np.argsort(dist)
+            neighbors = self.y_[dist[0][:self.n_neighbors]]
+            y_pred.append(max(set(neighbors.tolist()), key=neighbors.tolist().count))
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +132,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        y_pred = self.predict(X)
+        score = np.mean(y_pred == y)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,6 +174,7 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
+        
         return 0
 
     def split(self, X, y, groups=None):
