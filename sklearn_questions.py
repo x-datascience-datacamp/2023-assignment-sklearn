@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
+# import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -61,10 +61,12 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 from dateutil.relativedelta import relativedelta
 
+
 def max_cnt(arr):
     unique_elements, counts = np.unique(arr, return_counts=True)
     max_count_index = np.argmax(counts)
     return unique_elements[max_count_index]
+
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
@@ -89,7 +91,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         X, y = check_X_y(X, y)
         check_classification_targets(y)
-        self.X_= X
+        self.X_ = X
         self.y_ = y
         self.n_features_in_ = X.shape[1]
         self.classes_ = np.unique(y)
@@ -110,12 +112,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self)
         # Input validation
-        X = check_array(X)        
-        #y_pred = np.zeros(X.shape[0],dtype=int)
-        res = pairwise_distances(self.X_,X)
+        X = check_array(X)
+        res = pairwise_distances(self.X_, X)
         s = np.argsort(res, axis=0)[:self.n_neighbors]
         t = self.y_[s]
-        
         y_pred = np.apply_along_axis(max_cnt, axis=0, arr=t)
         return y_pred
 
@@ -176,8 +176,9 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        start_date = X.index.min()
-        end_date = X.index.max()
+        X_ = X.reset_index()
+        start_date = X_[self.time_col].min()
+        end_date = X_[self.time_col].max()
         month_difference = relativedelta(end_date, start_date)
         n_splits = month_difference.years*12 + month_difference.months
         return n_splits
@@ -202,24 +203,21 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        
-        X_= X.reset_index()
+        X_ = X.reset_index()
         if not is_datetime64_any_dtype(X_[self.time_col]):
             raise ValueError('Column is not a datetime')
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
-        start_date = X.index.min()
-        '''month = start_date.month
-        year = start_date.year'''
+        start_date = X_[self.time_col].min()
+
         for i in range(n_splits):
             end = relativedelta(months=1)
-            #idx_train = X.loc[start_date:start_date+end][:-1].index
-            idx_train = X_.loc[(X.index >=start_date) & (X.index < start_date+end)].index.values
+            cond = (X_[self.time_col] >= start_date) & \
+                (X_[self.time_col] < start_date+end)
+            idx_train = X_.loc[cond].index.values
             start_date = start_date+end
-            print('train',idx_train)
-            
-            idx_test = X_.loc[(X.index >=start_date) & (X.index < start_date+end)].index.values
-            print('test',idx_test)
+            cond = (X_[self.time_col] >= start_date) & \
+                (X_[self.time_col] < start_date+end)
+            idx_test = X_.loc[cond].index.values
             yield (
                 idx_train, idx_test
             )
