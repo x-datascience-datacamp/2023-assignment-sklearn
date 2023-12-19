@@ -99,7 +99,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         return self
 
     def distance_func(x1: np.ndarray, x2: np.ndarray) -> np.float64:
-        """Compute the euclidian distance
+        """Compute the euclidian distance.
 
         Parameters
         -----------
@@ -108,7 +108,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         Returns
         -----------
-        res : the distance between the two vectors
+        res : the distance between the two vectors.
         """
         return np.linalg.norm(x1 - x2)
 
