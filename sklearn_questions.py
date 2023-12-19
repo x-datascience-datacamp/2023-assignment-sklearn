@@ -174,8 +174,12 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        
-        return 0
+        X = X.reset_index()
+        if not isinstance(X[self.time_col][0], pd.Timestamp):
+            raise ValueError(
+                "The column passed to time_col should be of type datetime.")
+        n_splits = X[self.time_col].dt.to_period('M').nunique()-1
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -197,12 +201,21 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
+        X = X.reset_index()
         n_splits = self.get_n_splits(X, y, groups)
+        date_col = X[self.time_col]
+        X_msplit = X.resample("M", on=self.time_col).count().sort_index().index
+        y_msplit = X_msplit.map(lambda x: (x.year, x.month))
+
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+
+            idx_train = X[
+                (date_col.dt.month == y_msplit[i][1]) &
+                (date_col.dt.year == y_msplit[i][0])
+            ].index.to_numpy()
+            idx_test = X[
+                (date_col.dt.month == y_msplit[i+1][1]) &
+                (date_col.dt.year == y_msplit[i+1][0])
+            ].index.to_numpy()
+
+            yield (idx_train, idx_test)
