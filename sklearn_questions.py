@@ -47,6 +47,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 to compute distances between 2 sets of samples.
 """
+
 import numpy as np
 import pandas as pd
 
@@ -66,6 +67,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
+        self.X_train = None
+        self.y_train = None
 
     def fit(self, X, y):
         """Fitting function.
@@ -82,6 +85,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        self.X_train = X
+        self.y_train = y
         return self
 
     def predict(self, X):
@@ -97,7 +103,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self, 'X_train')
+        X = check_array(X)
+        dist = pairwise_distances(X, self.X_train)
+        n_closest = np.argpartition(
+            dist, self.n_neighbors)[:, :self.n_neighbors]
+        y_pred = np.apply_along_axis(
+            lambda row: np.bincount(row).argmax(),
+            axis=1,
+            arr=self.y_train[n_closest]
+            )
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +130,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self, 'X_train')
+        X = check_array(X)
+        y = check_classification_targets(y)
+
+        y_pred = self.predict(X)
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +175,9 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        return len(pd.date_range(
+            start=X[self.time_col].min(), end=X[self.time_col].max(), freq='M'
+            )) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
