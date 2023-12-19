@@ -48,17 +48,23 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
-
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
-
 from sklearn.model_selection import BaseCrossValidator
-
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import unique_labels
+
+
+def majority_vote(array):
+    """Predict the majority vote of an array.
+
+    Ex: [1,2,3,4,1] becomes 1.
+    """
+    nb = np.unique(array, return_counts=True)
+    return nb[0][np.argmax(nb[1])]
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +88,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Input validation
+        check_classification_targets(y)
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+        self.X_ = X
+        self.y_ = y
+        self.classes_ = unique_labels(y)
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -97,7 +111,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
+        # Check if fit has been called
+        check_is_fitted(self)
+        # Input validation
+        X = check_array(X)
         y_pred = np.zeros(X.shape[0])
+        matrix_distance = pairwise_distances(X, self.X_)
+        matrix_distance = np.argsort(matrix_distance)
+        array = self.y_[matrix_distance[:, :self.n_neighbors]]
+        y_pred = np.apply_along_axis(majority_vote, axis=1, arr=array)
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +137,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # Check if fit has been called
+        check_is_fitted(self)
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        score = np.sum((self.predict(X) == y)) / len(y)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +183,13 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        try:
+            if self.time_col != 'index':
+                X = X.set_index(self.time_col)
+            n_splits = len(np.unique(X.index.to_period('M'))) - 1
+        except ValueError:
+            raise ValueError("Not a datetime")
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +211,22 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
-        for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+        try:
+            n_splits = self.get_n_splits(X, y, groups)
+            if self.time_col != 'index':
+                X = X.set_index(self.time_col)
+            idx = np.arange(len(X))
+            for i in range(n_splits):
+                date_train = np.unique(
+                    X.index.to_period('M'))[i].to_timestamp()
+                date_test = np.unique(
+                    X.index.to_period('M'))[i+1].to_timestamp()
+                idx_train = idx[
+                    X.index.to_period('M').to_timestamp() == date_train]
+                idx_test = idx[
+                    X.index.to_period('M').to_timestamp() == date_test]
+                yield idx_train, idx_test
+        except ValueError:
+            raise ValueError("Not a datetime V2")
+        except AttributeError:
+            raise ValueError("Not a datetime V3")
