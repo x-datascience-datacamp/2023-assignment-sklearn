@@ -174,7 +174,6 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-
         if self.time_col == "index":
             if not is_datetime64_any_dtype(X.index):
                 raise ValueError("it is not datetime")
