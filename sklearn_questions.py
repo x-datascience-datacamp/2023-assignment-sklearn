@@ -68,7 +68,7 @@ def max_cnt(arr):
          Parameters
         ----------
         X : ndarray, shape (n_neighbors,)
-            neighbors
+            neighbors of a new data point
         Returns
         ----------
         self : class with max frequency in an array
