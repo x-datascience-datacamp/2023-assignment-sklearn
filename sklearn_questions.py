@@ -82,7 +82,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-        #y = check_array(y, ensure_2d=False, dtype=None)
         X = check_array(X)
         X, y = check_X_y(X, y)
         check_classification_targets(y)
@@ -91,7 +90,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self.classes_ = np.unique(y)
         self.n_features_in_ = X.shape[1]
         return self
-
 
     def predict(self, X):
         """Predict function.
@@ -220,4 +218,3 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_train, idx_test
             )
-        
