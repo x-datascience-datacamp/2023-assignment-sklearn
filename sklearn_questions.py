@@ -188,16 +188,16 @@ class MonthlySplit(BaseCrossValidator):
             The number of splits.
         """
         if not isinstance(X, type(pd.DataFrame())):
-            x_df = pd.DataFrame({'Date': X.index, 'val': X.values})
-            x_df['Date'] = pd.to_datetime(x_df['Date'])
-        elif self.time_col == 'index' and 'Date' not in X.columns[0]:
+            x_df = pd.DataFrame({'date': X.index, 'val': X.values})
+            x_df['date'] = pd.to_datetime(x_df['date'])
+        elif self.time_col == 'index' and 'date' not in X.columns[0]:
             x_df = X.reset_index().copy()
-            x_df = x_df.rename(columns={'index': 'Date'}, inplace=False)
+            x_df = x_df.rename(columns={'index': 'date'}, inplace=False)
         else:
             x_df = X.copy()
-            if 'Date' not in x_df.columns[0]:
-                x_df = x_df.rename({self.time_col: 'Date'})
-        month = pd.to_datetime(x_df['Date']).dt.strftime('%b-%Y')
+            if 'date' not in x_df.columns[0]:
+                x_df = x_df.rename({self.time_col: 'date'})
+        month = pd.to_datetime(x_df['date']).dt.strftime('%b-%Y')
         return len(set(month)) - 1
 
     def split(self, X, y, groups=None):
@@ -220,7 +220,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         if self.time_col != 'index':
             if not isinstance(X[self.time_col][0], type(pd.Timestamp('now'))):
                 raise ValueError('datetime')
@@ -228,17 +227,18 @@ class MonthlySplit(BaseCrossValidator):
             if not isinstance(X.index[0], type(pd.Timestamp('now'))):
                 raise ValueError('datetime')
         if not isinstance(X, type(pd.DataFrame())):
-            x_df = pd.DataFrame({'Date': X.index, 'val': X.values})
-            x_df['Date'] = pd.to_datetime(x_df['Date'])
+            x_df = pd.DataFrame({'date': X.index, 'val': X.values})
+            x_df['date'] = pd.to_datetime(x_df['date'])
         elif self.time_col == 'index':
             x_df = X.reset_index().copy()
-            x_df = x_df.rename(columns={'index': 'Date'})
+            x_df = x_df.rename(columns={'index': 'date'})
         else:
             x_df = X.copy()
-            if 'Date' not in x_df.columns[0]:
-                x_df = x_df.rename(columns={self.time_col: 'Date'}, inplace=False)
+            if 'date' not in x_df.columns[0]:
+                x_df = x_df.rename(columns={self.time_col: 'date'},
+                                   inplace=False)
         n_splits = self.get_n_splits(x_df, y, groups)
-        x_df['month_year'] = pd.to_datetime(x_df['Date']).dt.strftime('%b-%Y')
+        x_df['month_year'] = pd.to_datetime(x_df['date']).dt.strftime('%b-%Y')
         months_years = np.unique(np.sort(pd.to_datetime(x_df['month_year'])))
         x_df['month_year'] = pd.to_datetime(x_df['month_year'])
         x_df = x_df.reset_index()
