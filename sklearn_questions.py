@@ -65,7 +65,6 @@ from collections import Counter
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
-
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
@@ -85,18 +84,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The current instance of the classifier
         """
         X, y = check_X_y(X, y)
-        
         check_classification_targets(y=y)
         
         # Store training data and classes
         self.X_train_ = X
         self.y_train_ = y
         self.classes_ = unique_labels(y)
-        
+
         self.n_samples_fit_ = self.X_train_.shape[0]
         self.n_features_fit_ = self.X_train_.shape[1]
-        self._is_fitted = True
-        
+        self._is_fitted = True 
         return self
 
     def predict(self, X):
@@ -115,8 +112,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X)
         
-        distances = pairwise_distances(X=X, Y=self.X_train_)
-        min_indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
+        dists = pairwise_distances(X=X, Y=self.X_train_)
+        min_indices = np.argsort(dists, axis=1)[:, :self.n_neighbors]
         preds = self.y_train_[min_indices]
         y_pred = [max(Counter(row), key=Counter(row).get) for row in preds]
         
@@ -161,7 +158,6 @@ class MonthlySplit(BaseCrossValidator):
         for which this column is not a datetime, it will raise a ValueError.
         To use the index as column just set `time_col` to `'index'`.
     """
-
     def __init__(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
 
@@ -216,7 +212,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_splits = self.get_n_splits(X, y, groups)
         X = X.reset_index()
         dates = X[self.time_col]
