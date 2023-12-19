@@ -244,7 +244,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         if self.time_col != 'index':
             if not isinstance(X[self.time_col][0], type(pd.Timestamp('now'))):
                 raise ValueError('datetime')
