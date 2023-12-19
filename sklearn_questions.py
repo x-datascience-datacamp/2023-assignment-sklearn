@@ -66,6 +66,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
+        self.fit_status_ = False
 
     def fit(self, X, y):
         """Fitting function.
@@ -82,6 +83,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        self.X_train = X
+        self.classes, y_fit = np.unique(y, return_inverse=True)
+        self.y_train = y_fit
+        self.fit_status_ = True
         return self
 
     def predict(self, X):
@@ -97,7 +102,28 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
+        if not self.fit_status_:
+            raise ValueError("You must call fit before predict!")
+        
         y_pred = np.zeros(X.shape[0])
+        # compute distances
+        dist = pairwise_distances(X, self.X_train)
+        print(dist)
+        # find the indices of the k nearest neighbors
+        idx = np.argsort(dist, axis=1)[:, :self.n_neighbors]
+        print(idx)
+        # get label for each neighbor
+        nearest_labels = self.y_train[idx]
+        print(nearest_labels)
+        # find the most common label
+        y_pred = np.array([
+            np.bincount(nearest_label).argmax()
+            for nearest_label in nearest_labels
+        ])
+        print(y_pred)
+        # find the original label
+        y_pred = self.classes[y_pred]
+
         return y_pred
 
     def score(self, X, y):
@@ -186,3 +212,22 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_train, idx_test
             )
+
+
+if __name__ == "__main__":
+    X_train = np.array([
+        [1, 1, 1],
+        [2, 2, 2],
+        [3, 3, 3]
+    ])
+    y_train = np.array([0, 5, 0])
+    X_test = np.array([
+        [1, 0, 1],
+        [2, 3, 2],
+        [3, 3, 5]
+    ])
+    y_test = np.array([0, 5, 0])
+    model = KNearestNeighbors(n_neighbors=1)
+    model = model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    print(y_pred)
