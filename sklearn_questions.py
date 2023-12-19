@@ -48,7 +48,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -57,8 +56,11 @@ from sklearn.model_selection import BaseCrossValidator
 
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
-from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.multiclass import (check_classification_targets,
+                                      unique_labels)
 from sklearn.metrics.pairwise import pairwise_distances
+
+from collections import Counter
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +84,21 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Check consistency between X and y
+        X, y = check_X_y(X, y)
+
+        # Check y type
+        check_classification_targets(y=y)
+
+        # Store training data and classes
+        self.X_train_ = X
+        self.y_train_ = y
+        self.classes_ = unique_labels(y)
+
+        self.n_samples_fit_ = self.X_train_.shape[0]
+        self.n_features_in_ = self.X_train_.shape[1]
+        self._is_fitted = True
+
         return self
 
     def predict(self, X):
@@ -97,8 +114,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+        X = check_array(X)
+
+        dists = pairwise_distances(X=X, Y=self.X_train_)
+        min_indices = np.argsort(dists, axis=1)[:, :self.n_neighbors]
+        preds = self.y_train_[min_indices]
+        y_pred = [max(Counter(row), key=Counter(row).get) for row in preds]
+
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +139,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        X = check_array(X)
+        check_classification_targets(y=y)
+
+        preds = self.predict(X)
+
+        return (preds == y).sum() / preds.shape[0]
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +185,19 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X = X.reset_index()
+        dates_for_x = X[self.time_col]
+
+        try:
+            date_year_month = dates_for_x.map(lambda x: (x.year, x.month))
+        except Exception as e:
+            raise ValueError(
+                f"error splitting - {e}"
+            )
+
+        n_months = len(date_year_month.unique())
+
+        return n_months - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +219,22 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index()
+        dates_for_x = X[self.time_col]
+        dates_year_month = dates_for_x.map(lambda x: (x.year, x.month))
+        months = np.sort(dates_year_month.unique())
+
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            year, month = months[i]
+            idx_train = X[
+                (dates_for_x.dt.year == year) & (dates_for_x.dt.month == month)
+                ].index.to_numpy()
+            year, month = months[i + 1]
+            idx_test = X[
+                (dates_for_x.dt.year == year) & (dates_for_x.dt.month == month)
+                ].index.to_numpy()
+
             yield (
                 idx_train, idx_test
             )
