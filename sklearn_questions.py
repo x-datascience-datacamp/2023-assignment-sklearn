@@ -199,7 +199,7 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        newX = X.rest_index()
+        newX = X.reset_index()
         n_splits = self.get_n_splits(newX, y, groups)
         Xtodivide = newX.sort_values(
             self.time_col
