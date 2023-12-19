@@ -82,6 +82,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        check_array(X)
+        check_classification_targets(y)
+        X, y = check_X_y(X, y)
+        self.X_train_ = X
+        self.y_train_ = y
+        self.classes_ = np.sort(list(set(np.array(y))))
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -97,7 +104,44 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        X = check_array(X)
+        check_is_fitted(self)
+        N = X.shape[0]
+        K = self.n_neighbors
+        y_pred = np.zeros(N)
+        D = pairwise_distances(X, self.X_train_, metric='l2')
+        D_sort = np.argsort(D, axis=1)
+        D_sort = D_sort[:, 0:K]
+        D_final = np.zeros((N, K))
+        # print(self.y_train_)
+        convert = False
+        neg = False
+        # print('y_train = {}'.format(self.y_train_))
+        if isinstance(self.y_train_[0], type('one')):
+            convert = True
+            a, b = np.unique(self.y_train_, return_inverse=True)
+            # print('classes = {}'.format(self.classes_))
+        else:
+            if np.min(self.y_train_) < 0:
+                neg = True
+                b = self.y_train_ + np.abs(np.min(self.y_train_))
+            else:
+                b = self.y_train_.copy()
+        # print('b = {}'.format(b))
+        # print('has_attribute_class = {}'.format(hasattr(self, "classes_")))
+        for i in range(D_sort.shape[0]):
+            for j in range(D_sort.shape[1]):
+                # print(D_sort[i, j])
+                D_final[i, j] = b[D_sort[i, j]]
+        # print(D_final)
+        for t in range(N):
+            y_pred[t] = np.argmax(np.bincount(D_final[t, :].astype('int')))
+        if convert:
+            y_pred = np.array([a[int(val)] for val in y_pred])
+        if neg:
+            y_pred = y_pred - np.abs(np.min(self.y_train_))
+        # print(y_pred)
+        # print(self.__dict__ == self.__dict__)
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +159,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_array(X)
+        check_classification_targets(y)
+        check_is_fitted(self)
+        y_pred = self.predict(X)
+        results = np.equal(y_pred, y)
+        return np.mean(results)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +204,25 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if not isinstance(X, type(pd.DataFrame())):
+            # print('X index type = {}'.format(type(X.index)))
+            Xn = pd.DataFrame({'date': X.index, 'val': X.values})
+            # print(Xn.index[-1])
+            Xn['date'] = pd.to_datetime(Xn['date'])
+            # print('Xn index type = {}'.format(type(Xn.index)))
+        elif self.time_col == 'index' and 'date' not in X.columns[0]:
+            Xn = X.reset_index().copy()
+            Xn = Xn.rename(columns={'index': 'date'}, inplace=False)
+            # print(Xn.columns)
+        else:
+            Xn = X.copy()
+            if 'date' not in Xn.columns[0]:
+                print('tutu')
+                Xn = Xn.rename({self.time_col: 'date'})
+                print('fin tutu')
+        month_of_dates = pd.to_datetime(Xn['date']).dt.strftime('%b-%Y')
+        # print('result n split = {}'.format(len(set(month_of_dates)) - 1))
+        return len(set(month_of_dates)) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +244,38 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
+        if self.time_col != 'index':
+            if not isinstance(X[self.time_col][0], type(pd.Timestamp('now'))):
+                raise ValueError('datetime')
+        else:
+            if not isinstance(X.index[0], type(pd.Timestamp('now'))):
+                raise ValueError('datetime')
+        if not isinstance(X, type(pd.DataFrame())):
+            # print('X index type = {}'.format(type(X.index)))
+            Xn = pd.DataFrame({'date': X.index, 'val': X.values})
+            # print(Xn.index[-1])
+            Xn['date'] = pd.to_datetime(Xn['date'])
+            # print('Xn index type = {}'.format(type(Xn.index)))
+        elif self.time_col == 'index':
+            Xn = X.reset_index().copy()
+            Xn = Xn.rename(columns={'index': 'date'})
+        else:
+            Xn = X.copy()
+            # print(Xn.head())
+            if 'date' not in Xn.columns[0]:
+                # print('tutu')
+                Xn = Xn.rename(columns={self.time_col: 'date'}, inplace=False)
+        n_splits = self.get_n_splits(Xn, y, groups)
+        Xn['month_year'] = pd.to_datetime(Xn['date']).dt.strftime('%b-%Y')
+        months_years = np.unique(np.sort(pd.to_datetime(Xn['month_year'])))
+        # print('months_years = {}'.format(months_years))
+        Xn['month_year'] = pd.to_datetime(Xn['month_year'])
+        Xn = Xn.reset_index()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = list(Xn[Xn['month_year'] == months_years[i]].index)
+            idx_test = list(Xn[Xn['month_year'] == months_years[i+1]].index)
+            # print('train = {}'.format(idx_train))
+            # print('test = {}'.format(idx_test))
             yield (
                 idx_train, idx_test
             )
