@@ -65,8 +65,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
-        self.X_train = None
-        self.y_train = None
 
     def fit(self, X, y):
         """Fitting function.
@@ -84,6 +82,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The current instance of the classifier
         """
         X, y = check_X_y(X, y)
+        self.classes = np.unique(y)
+        self.n_features = X.shape[1]
+        if len(self.classes) < 2:
+            raise ValueError("Need at least 2 classes.")
         self.X_train = X
         self.y_train = y
         return self
