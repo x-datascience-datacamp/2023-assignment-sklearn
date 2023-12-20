@@ -66,6 +66,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
+        """Init number of neighbors
+
+        Args:
+            n_neighbors (int, optional): number of neighbors. Defaults to 1.
+        """
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -158,7 +163,13 @@ class MonthlySplit(BaseCrossValidator):
         To use the index as column just set `time_col` to `'index'`.
     """
 
-    def __init__(self, time_col='index'):  
+    def __init__(self, time_col='index'):
+        """Init attributes
+
+        Args:
+            time_col (str, optional): column of the input DataFrame that will 
+                                      be used to split the data. Defaults to 'index'.
+        """
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -205,7 +216,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        
         n_splits = self.get_n_splits(X, y, groups)
         X = X.reset_index()
         time_col = X[self.time_col]
