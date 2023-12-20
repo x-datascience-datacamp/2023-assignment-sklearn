@@ -49,7 +49,6 @@ to compute distances between 2 sets of samples.
 """
 import numpy as np
 import pandas as pd
-import datetime as dt
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -67,7 +66,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
-
 
     def fit(self, X, y):
         """Fitting function.
@@ -93,9 +91,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         self.X_ = X
         self.y_ = y
-        
-        return self
 
+        return self
 
     def predict(self, X):
         """Predict function.
@@ -119,8 +116,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y_pred = []
         for row in range(classes.shape[0]):
             _, idx, counts = np.unique(classes[row],
-                                         return_index=True,
-                                         return_counts=True)
+                                       return_index=True,
+                                       return_counts=True)
             index = idx[np.argmax(counts)]
             prediction = classes[row][index]
             y_pred.append(prediction)
@@ -193,14 +190,14 @@ class MonthlySplit(BaseCrossValidator):
         X_copy = X.reset_index() if self.time_col == "index" else X.copy()
 
         if X_copy[self.time_col].dtype != "datetime64[ns]":
-            raise ValueError(f"The column'{self.time_col}' should be a datetime.")
+            raise ValueError(
+                f"The column'{self.time_col}' should be a datetime.")
 
         monthly_periods = X_copy[self.time_col].dt.to_period("M")
 
         n_splits = monthly_periods.nunique() - 1
 
         return n_splits
-
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
