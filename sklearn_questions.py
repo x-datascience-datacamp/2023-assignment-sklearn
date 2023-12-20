@@ -82,8 +82,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The current instance of the classifier
         """
         X, y = check_X_y(X, y)
-        self.classes = np.unique(y)
-        self.n_features = X.shape[1]
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
         if len(self.classes) < 2:
             raise ValueError("Need at least 2 classes.")
         self.X_ = X
