@@ -64,6 +64,7 @@ from pandas.api.types import is_datetime64_any_dtype
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier.
+
     Attributes
         ----------
         X_ : Data used to fit the model.
@@ -78,7 +79,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """Fitting function for the KNearestNeighbors classifier.
 
-         Parameters
+        Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
             Data to train the model.
@@ -90,7 +91,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-
         # Check that X and y have correct shape
         X, y = check_X_y(X, y)
         X = check_array(X)
