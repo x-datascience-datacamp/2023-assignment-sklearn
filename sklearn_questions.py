@@ -52,7 +52,6 @@ import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
-from scipy.stats import mode
 from sklearn.model_selection import BaseCrossValidator
 
 from sklearn.utils.validation import check_X_y
@@ -108,10 +107,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y_pred = np.zeros(X.shape[0])
         for i, x_test in enumerate(X):
             distances = np.sqrt(np.sum((self.X_ - x_test)**2, axis=1))
-            indices = np.argsort(distances)[:self.n_neighbors]
-            neighbors_labels = self.y_[indices]
-            mode_result = mode(neighbors_labels)
-            y_pred[i] = mode_result.mode[0]
+            indices = np.argsort(distances, axis=1)[0][:self.n_neighbors]
+            unique, counts = np.unique(self.y_[indices], return_counts=True)
+            y_pred[i] = unique[np.argmax(counts)]
         return y_pred
 
     def score(self, X, y):
