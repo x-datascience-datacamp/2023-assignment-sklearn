@@ -52,6 +52,7 @@ import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
+from sklearn.metrics import pairwise_distances
 from sklearn.model_selection import BaseCrossValidator
 
 from sklearn.utils.validation import check_X_y
@@ -106,8 +107,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         y_pred = np.zeros(X.shape[0])
         for i, x_test in enumerate(X):
-            distances = np.sqrt(np.sum((self.X_ - x_test)**2, axis=1))
-            indices = np.argsort(distances, axis=1)[0][:self.n_neighbors]
+            distances = pairwise_distances(X, self.X_)
+            indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
             unique, counts = np.unique(self.y_[indices], return_counts=True)
             y_pred[i] = unique[np.argmax(counts)]
         return y_pred
@@ -171,9 +172,10 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        newX = X.copy()
         if self.time_col == 'index':
-            newX = newX.reset_index()
+            newX = X.reset_index()
+        else:
+            newX = X.copy()
         if not is_datetime(newX[self.time_col]):
             raise ValueError(f"{self.time_col} should be of type datetime.")
         start_date = X[self.time_col].max()
