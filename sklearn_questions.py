@@ -208,7 +208,7 @@ class MonthlySplit(BaseCrossValidator):
             raise ValueError(
                 "The index of the input DataFrame is not a datetime index"
             )
-        
+
         start = X.index.min()
         end = X.index.max()
         nb_months = (end.year - start.year) * 12 + end.month - start.month
