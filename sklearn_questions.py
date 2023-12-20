@@ -109,13 +109,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X)
         y_pred = []
-        for i in range(X.shape[0]):
-            distances = pairwise_distances(X[i].reshape(1, -1), self.X_)
-            indices = np.argsort(distances)[:self.n_neighbors]
-            neighbors_labels = self.y_[indices]
-            value, counts = np.unique(neighbors_labels, return_counts=True)
-            pred_i = value[np.argmax(counts)]
-            y_pred.append(pred_i)
+        for i, x in enumerate(X):
+            distances = pairwise_distances(x.reshape(1, -1), self.X_)
+            idx = np.argsort(distances, axis=1)[0][:self.n_neighbors]
+            values, counts = np.unique(self.y_[idx], return_counts=True)
+            y_pred.append(values[np.argmax(counts)])
         y_pred = np.array(y_pred)
         return y_pred
 
@@ -136,9 +134,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         # check_is_fitted(self, attributes=["X_train", "y_train"])
         # X, y = check_X_y(X, y)
+        check_is_fitted(self)
+        X = check_array(X)
         y_pred = self.predict(X)
-        accuracy = np.mean(y_pred == y)
-        return accuracy
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -217,5 +216,4 @@ class MonthlySplit(BaseCrossValidator):
             idx_test = list(idxs[i+1])
             yield (
                 idx_train, idx_test
-            )
-        
+                )
