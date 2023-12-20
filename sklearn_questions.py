@@ -62,6 +62,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 from collections import Counter
 
+
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
@@ -92,7 +93,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         check_classification_targets(y)
         self.X_ = X
         self.y_ = y
-        self.classes_ = np.unique(y) 
+        self.classes_ = np.unique(y)
         self.n_features_in_ = X.shape[1]
         return self
 
@@ -118,7 +119,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         def majority_vote(array):
             counts = Counter(array)
             return counts.most_common(1)[0][0]
-        
         return np.apply_along_axis(majority_vote, 1, closest_labels)
 
     def score(self, X, y):
@@ -167,8 +167,9 @@ class MonthlySplit(BaseCrossValidator):
         """Init attributes.
 
         Args:
-            time_col (str, optional): column of the input DataFrame that will 
-                                      be used to split the data. Defaults to 'index'.
+            time_col (str, optional): column of the input DataFrame that will
+                                      be used to split the data.
+                                      Defaults to 'index'.
         """
         self.time_col = time_col
 
@@ -192,7 +193,8 @@ class MonthlySplit(BaseCrossValidator):
         """
         X = X.reset_index()
         if not isinstance(X[self.time_col][0], pd.Timestamp):
-            raise ValueError(f"The '{self.time_col}' column does not contain datetime.")
+            raise ValueError(f"The '{self.time_col}' 
+                             column does not contain datetime.")
         unique_times = X[self.time_col].dt.to_period("M").unique()
         return len(unique_times) - 1
 
@@ -219,7 +221,8 @@ class MonthlySplit(BaseCrossValidator):
         n_splits = self.get_n_splits(X, y, groups)
         X = X.reset_index()
         time_col = X[self.time_col]
-        last_day_by_month = X.resample("M", on=self.time_col).last().sort_index().index
+        last_day_by_month = X.resample("M", on=self.time_col
+                                       ).last().sort_index().index
         month_year = [(x.month, x.year) for x in last_day_by_month]
         for i in range(n_splits):
             start_month, start_year = month_year[i]
