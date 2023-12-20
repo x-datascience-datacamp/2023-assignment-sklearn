@@ -55,9 +55,9 @@ from sklearn.base import ClassifierMixin
 
 from sklearn.model_selection import BaseCrossValidator
 
-from sklearn.utils.validation import check_X_y  # , check_is_fitted
-# from sklearn.utils.validation import check_array
-# from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.validation import check_X_y, check_is_fitted
+from sklearn.utils.validation import check_array
+from sklearn.utils.multiclass import check_classification_targets
 # from sklearn.metrics.pairwise import pairwise_distances
 import datetime
 
@@ -84,6 +84,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The current instance of the classifier
         """
         X, y = check_X_y(X, y)
+        check_classification_targets(y)
         self.X_train = np.array(X)
         self.y_train = np.array(y)
 
@@ -102,6 +103,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
+        check_is_fitted(self, attributes=["X_train", "y_train"])
+        X = check_array(X)
         y_pred = np.zeros(X.shape[0])
         for i in range(X.shape[0]):
             distances = np.linalg.norm(X[i] - self.X_train, axis=1)
@@ -126,6 +129,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
+        check_is_fitted(self, attributes=["X_train", "y_train"])
+        X, y = check_X_y(X, y)
         y_pred = self.predict(X)
         accuracy = np.mean(y_pred == y)
         return accuracy
