@@ -216,7 +216,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         X = X.reset_index()
 
         if not pd.api.types.is_datetime64_any_dtype(X[self.time_col]):
