@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
+from scipy import stats
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -59,10 +59,11 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from pandas.api.types import is_datetime64_any_dtype
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
-    """KNearestNeighbors classifier."""
+    """KNearestNeighbors classifier. """
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
@@ -82,6 +83,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+
+        self.y_ = np.empty(y.shape, dtype=np.intp)
+        self.classes_, self.y_ = np.unique(y, return_inverse=True)
+        self.n_features_in_ = X.shape[1]
+        self.X_ = X
+
         return self
 
     def predict(self, X):
@@ -97,7 +106,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+
+        dist = pairwise_distances(X, self.X_)
+        idx = np.argsort(dist, axis=1)[:, : self.n_neighbors]
+        mode, _ = stats.mode(self.y_[idx], axis=1)
+        y_pred = self.classes_[mode.ravel().astype(int)]
+        # import IPython
+        # IPython.embed()
+
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +133,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        check_is_fitted(self)
+
+        score = np.mean(self.predict(X) == y)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +178,17 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == "index":
+            if not is_datetime64_any_dtype(X.index):
+                raise ValueError("it is not datetime")
+            self.X_ = X.copy()
+        else:
+            if not is_datetime64_any_dtype(X[self.time_col]):
+                raise ValueError("it is not datetime")
+            self.X_ = X.reset_index().set_index(self.time_col,
+                                                verify_integrity=True)
+        number_month = self.X_.index.to_period('M').nunique()-1
+        return number_month
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -180,9 +213,28 @@ class MonthlySplit(BaseCrossValidator):
 
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        period = self.X_.index.to_period('M')
+        months = period.unique().sort_values()
+        indexes = np.array(range(n_samples))
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            mask_trainning = (period == months[i])
+            mask_testing = (period == months[i+1])
+            idx_train = indexes[mask_trainning]
+            idx_test = indexes[mask_testing]
             yield (
                 idx_train, idx_test
             )
+
+# if __name__ == "__main__":
+#     model = KNearestNeighbors(n_neighbors=4)
+#     X_train = np.array([[1, 2, 3, 4],
+#               [0, 1, 2, 3],
+#               [1, 1, 2, 0],
+#               [2, 1, 2, 3]])
+#     X_test = np.array([[1, 2, 3, 4],
+#               [0, 1, 2, 3],
+#               [2, 1, 2, 4]])
+#     y_train = np.array([0, 1, 1, 1])
+#     y_test = np.array([0, 1, 1])
+#     model.fit(X_train, y_train)
+#     model.predict(X_train)
