@@ -160,6 +160,23 @@ class MonthlySplit(BaseCrossValidator):
         self.time_col = time_col
 
     def set_index_time(self, X):
+        """Set (if necessary) and validate the time column as the index of the DataFrame.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input DataFrame.
+
+        Returns
+        -------
+        X : pd.DataFrame
+            DataFrame with the time column set as the index.
+
+        Raises
+        ------
+        ValueError
+            If the specified time column isn't in the good format.
+        """
         # put index if needed
         if self.time_col != "index":
             X = X.reset_index().set_index(self.time_col)
@@ -218,7 +235,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         # n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
         for i in range(n_splits):
