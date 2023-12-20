@@ -59,8 +59,6 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.metrics import accuracy_score
 from collections import Counter
-from sklearn.datasets import make_classification
-from sklearn.utils.estimator_checks import check_estimator
 from pandas.api.types import is_datetime64_any_dtype
 
 
@@ -115,7 +113,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         def find_most_common(row):
             return max(Counter(row), key=Counter(row).get)
 
-        y_pred = np.apply_along_axis(find_most_common, axis=1, arr=closest_neighbors)
+        y_pred = np.apply_along_axis(find_most_common,
+                                     axis=1,
+                                     arr=closest_neighbors)
         return y_pred
 
     def score(self, X, y):
@@ -175,7 +175,6 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-
         self.X_ = X.copy()
         if self.time_col == 'index':
             self.X_ = X.reset_index()
@@ -210,8 +209,10 @@ class MonthlySplit(BaseCrossValidator):
         X_grouped = X_.resample("M", on=self.time_col)
         id = X_grouped.apply(lambda group: group.index).tolist()
 
-        # X_grouped.apply(lambda group: group.index) applies a lambda function to each group in X_grouped.
-        # The lambda function takes a group and retrieves its index (indices of rows) using group.index.
+        # X_grouped.apply(lambda group: group.index) applies
+        # a lambda function to each group in X_grouped.
+        # The lambda function takes a group and retrieves
+        # its index (indices of rows) using group.index.
 
         for i in range(n_splits):
             idx_train = list(id[i])
@@ -219,17 +220,3 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_train, idx_test
             )
-
-
-X, y = make_classification(n_samples=200, n_features=20, random_state=42)
-knn_classifier = KNearestNeighbors(n_neighbors=3)
-knn_classifier.fit(X, y)
-print(knn_classifier.predict(X))
-print(knn_classifier.score(X, y))
-
-
-def test_one_nearest_neighbor_check_estimator(k):
-    check_estimator(KNearestNeighbors(n_neighbors=k))
-
-
-test_one_nearest_neighbor_check_estimator(3)
