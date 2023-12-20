@@ -107,7 +107,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         y_pred = np.zeros(X.shape[0])
         for i, x_test in enumerate(X):
-            distances = pairwise_distances(X.reshape(1, -1), self.X_)
+            distances = pairwise_distances(x_test.reshape(1, -1), self.X_)
             indices = np.argsort(distances, axis=1)[0][:, :self.n_neighbors]
             unique, counts = np.unique(self.y_[indices], return_counts=True)
             y_pred[i] = unique[np.argmax(counts)]
@@ -178,8 +178,8 @@ class MonthlySplit(BaseCrossValidator):
             newX = X.copy()
         if not is_datetime(newX[self.time_col]):
             raise ValueError(f"{self.time_col} should be of type datetime.")
-        start_date = X[self.time_col].max()
-        end_date = X[self.time_col].min()
+        start_date = newX[self.time_col].max()
+        end_date = newX[self.time_col].min()
         return (
             12 * (start_date.year - end_date.year)
             + start_date.month
