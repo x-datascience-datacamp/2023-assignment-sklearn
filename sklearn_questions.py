@@ -66,7 +66,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
-        self.fit_status_ = False
 
     def fit(self, X, y):
         """Fitting function.
@@ -83,10 +82,26 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-        self.X_train = X
-        self.classes, y_fit = np.unique(y, return_inverse=True)
-        self.y_train = y_fit
-        self.fit_status_ = True
+        # checks
+        X, y = check_X_y(X, y)
+        X = check_array(X)
+        check_classification_targets(y)
+        if not (isinstance(X, np.ndarray) and isinstance(y, np.ndarray)):
+            raise ValueError("X and y must be of type numpy.ndarray")
+
+        n, m = X.shape
+        self.n_samples_ = n
+        self.n_features_in_ = m
+        if n == 1:
+            raise ValueError("n_samples=1")
+        if self.n_neighbors > n:
+            raise ValueError("n_neighbors larger than the number of samples")
+
+        # fit
+        self.X_train_ = X
+        self.classes_, y_fit = np.unique(y, return_inverse=True)
+        self.y_train_ = y_fit
+        self._is_fitted = True
         return self
 
     def predict(self, X):
@@ -102,27 +117,22 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        if not self.fit_status_:
-            raise ValueError("You must call fit before predict!")
-        
+        # checks
+        check_is_fitted(self)
+        X = check_array(X)
+        if not isinstance(X, np.ndarray):
+            raise ValueError("X must be of type numpy.ndarray")
+
+        # predict
         y_pred = np.zeros(X.shape[0])
-        # compute distances
-        dist = pairwise_distances(X, self.X_train)
-        print(dist)
-        # find the indices of the k nearest neighbors
+        dist = pairwise_distances(X, self.X_train_)
         idx = np.argsort(dist, axis=1)[:, :self.n_neighbors]
-        print(idx)
-        # get label for each neighbor
-        nearest_labels = self.y_train[idx]
-        print(nearest_labels)
-        # find the most common label
+        nearest_labels = self.y_train_[idx]
         y_pred = np.array([
             np.bincount(nearest_label).argmax()
             for nearest_label in nearest_labels
         ])
-        print(y_pred)
-        # find the original label
-        y_pred = self.classes[y_pred]
+        y_pred = np.array(self.classes_[y_pred])
 
         return y_pred
 
@@ -141,7 +151,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # checks
+        check_is_fitted(self)
+        X, y = check_X_y(X, y)
+        if not isinstance(X, np.ndarray) or not isinstance(y, np.ndarray):
+            raise ValueError("X must be of type numpy.ndarray")
+
+        # score
+        y_pred = self.predict(X)
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -181,7 +199,24 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        # checks
+        if not self.time_col == 'index':
+            X = X.reset_index()
+            X = X.set_index(self.time_col, verify_integrity=True)
+
+        if not isinstance(X.index, pd.DatetimeIndex):
+            raise ValueError(
+                "The index of the input DataFrame is not a datetime index"
+            )
+        
+        start = X.index.min()
+        end = X.index.max()
+        nb_months = (end.year - start.year) * 12 + end.month - start.month
+        if start.day != 1:
+            nb_months -= 1
+        if end.day != end.days_in_month:
+            nb_months -= 1
+        return nb_months
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -203,31 +238,24 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
+        # checks
+        if not self.time_col == 'index':
+            X = X.reset_index()
+            X = X.set_index(self.time_col, verify_integrity=True)
+
+        if not isinstance(X.index, pd.DatetimeIndex):
+            raise ValueError(
+                "The index of the input DataFrame is not a datetime index"
+            )
 
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+
+        months = X.index.to_period('M').unique().sort_values()
+        all_indices = np.array(range(n_samples))
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = all_indices[X.index.to_period('M') == months[i]]
+            idx_test = all_indices[X.index.to_period('M') == months[i + 1]]
             yield (
                 idx_train, idx_test
             )
-
-
-if __name__ == "__main__":
-    X_train = np.array([
-        [1, 1, 1],
-        [2, 2, 2],
-        [3, 3, 3]
-    ])
-    y_train = np.array([0, 5, 0])
-    X_test = np.array([
-        [1, 0, 1],
-        [2, 3, 2],
-        [3, 3, 5]
-    ])
-    y_test = np.array([0, 5, 0])
-    model = KNearestNeighbors(n_neighbors=1)
-    model = model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    print(y_pred)
