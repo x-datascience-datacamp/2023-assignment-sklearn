@@ -82,8 +82,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-        self.X = X
-        self.y = y
+        self.X_train = X
+        self.y_train = y
         return self
 
     def predict(self, X):
@@ -99,11 +99,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        dist = pairwise_distances(X, self.X)
-        indices = np.argsort(dist, axis=1)[:, :self.n_neighbors]
-        y_neighbors = self.y_[indices]
-        y_pred = np.apply_along_axis(lambda x: np.bincount(x).argmax(), axis=1, arr=y_neighbors)
+        dist = pairwise_distances(X, self.X_train)
+        indices = np.argsort(dist)[:, :self.n_neighbors]
+        y_pred = np.apply_along_axis(
+            lambda x: np.bincount(x).argmax(),
+            axis=1, arr=self.y_train[indices]
+        )
         return y_pred
+
     
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -120,8 +123,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
+        check_classification_targets(y)
+        X = check_array(X)
         y_pred = self.predict(X)
         return np.mean(y_pred == y)
+
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -161,8 +167,8 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return len(pd.date_range(start=X[self.time_col].min(), end=X[self.time_col].max(), freq='M')) - 1
-
+        return len(pd.date_range(X[self.time_col].min(), X[self.time_col].max(), freq='M')) - 1
+    
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
 
@@ -183,9 +189,12 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        unique_dates = pd.date_range(start=X[self.time_col].min(), end=X[self.time_col].max(), freq='M')
-        for i in range(self.get_n_splits(X, y, groups)):
-            train_mask = X[self.time_col].dt.month == unique_dates[i].month
-            test_mask = X[self.time_col].dt.month == unique_dates[i + 1].month
-            yield np.where(train_mask)[0], np.where(test_mask)[0]
+        
+        n_samples = X.shape[0]
+        n_splits = self.get_n_splits(X, y, groups)
+        for i in range(n_splits):
+            idx_train = range(n_samples)
+            idx_test = range(n_samples)
+            yield (
+                idx_train, idx_test
+            )
