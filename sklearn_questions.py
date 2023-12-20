@@ -59,7 +59,12 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
-
+from sklearn.metrics import accuracy_score
+from collections import Counter
+from sklearn.datasets import make_classification
+from sklearn.utils.estimator_checks import check_estimator
+from sklearn.utils import shuffle
+from pandas.api.types import is_datetime64_any_dtype
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
@@ -82,15 +87,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-        if not check_array(X):
-            raise ValueError("X must be an array")
-        if not check_array(y,ensure_2d=False,ensure_min_samples=1):
-            raise ValueError("y must be an 1D array")
-        if not check_classification_targets(y):
-            raise ValueError("y must contain integer labels for classification")
         X, y = check_X_y(X,y)
+        check_classification_targets(y)
         self.y_ = y
         self.X_ = X # the X_ is to prove the variable is fitted
+        self.classes_ = np.unique(y) 
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -107,16 +109,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             Predicted class labels for each test data sample.
         """
         check_is_fitted(self)
-        X = check_array(X)
-        
-        distance = pairwise_distances(X,self.X_,metric="euclidean")
-        index = np.argsort(distance,axis=1)[:,:self.n_neighbors]
-        #Get the labels of the closest neighbors
-        closest_labels = self.y_[index]
+        euclidian_distance = pairwise_distances(X,self.X_,metric="euclidean")
+        index = np.argsort(euclidian_distance,axis=1)[:,:self.n_neighbors]
 
-        # Predict the majority class (or mean value for regression)
-        y_pred = np.apply_along_axis(lambda x: np.bincount(x).argmax(), axis=1, arr=closest_labels)
+        closest_neighbors = self.y_[index]
 
+        def find_most_common(row):
+            return max(Counter(row), key=Counter(row).get)
+
+        y_pred = np.apply_along_axis(find_most_common, axis=1, arr=closest_neighbors)
+    
         return y_pred
 
     def score(self, X, y):
@@ -135,7 +137,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             Accuracy of the model computed for the (X, y) pairs.
         """
         pred = self.predict(X)
-        score = np.mean(pred == y)
+        score = accuracy_score(y, pred)
+        
         return score
 
 
@@ -157,7 +160,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def __init__(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
-
+    
     def get_n_splits(self, X, y=None, groups=None):
         """Return the number of splitting iterations in the cross-validator.
 
@@ -176,7 +179,15 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+
+        self.X_ = X.copy()
+        if self.time_col == 'index':
+            self.X_ = X.reset_index()
+        if not is_datetime64_any_dtype(self.X_[self.time_col]):
+                raise ValueError(" not datetime")
+        self.listmonths = self.X_[self.time_col].dt.to_period("M").unique()
+        nb_months = len(self.listmonths) - 1
+        return nb_months
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -198,12 +209,29 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
+        X_ = X.reset_index()
+        n_splits = self.get_n_splits(X_, y, groups)
+        X_grouped = X_.resample("M", on=self.time_col)
+        id = X_grouped.apply(lambda group: group.index).tolist()
 
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
+        # X_grouped.apply(lambda group: group.index) applies a lambda function to each group in X_grouped.
+        # The lambda function takes a group and retrieves its index (indices of rows) using group.index.
+
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = list(id[i])
+            idx_test = list(id[i+1])
             yield (
                 idx_train, idx_test
             )
+
+X, y = make_classification(n_samples=200, n_features=20,
+                               random_state=42)
+knn_classifier = KNearestNeighbors(n_neighbors=3)
+knn_classifier.fit(X,y)
+print(knn_classifier.predict(X))
+print(knn_classifier.score(X,y))
+
+def test_one_nearest_neighbor_check_estimator(k):
+    check_estimator(KNearestNeighbors(n_neighbors=k))
+
+test_one_nearest_neighbor_check_estimator(3)
