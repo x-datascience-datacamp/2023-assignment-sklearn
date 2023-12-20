@@ -107,7 +107,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         y_pred = np.zeros(X.shape[0])
         for i, x_test in enumerate(X):
-            distances = pairwise_distances(X.reshape(-1, 1), self.X_)
+            distances = pairwise_distances(X.reshape(1, -1), self.X_)
             indices = np.argsort(distances, axis=1)[0][:, :self.n_neighbors]
             unique, counts = np.unique(self.y_[indices], return_counts=True)
             y_pred[i] = unique[np.argmax(counts)]
@@ -215,6 +215,6 @@ class MonthlySplit(BaseCrossValidator):
             )
         idxs = [batch.index for _, batch in Xtodivide]
         for i in range(n_splits):
-            idx_train = list(idxs[i+1])
+            idx_train = list(idxs[i])
             idx_test = list(idxs[i+1])
             yield idx_train, idx_test
