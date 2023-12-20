@@ -64,7 +64,7 @@ from sklearn.metrics import euclidean_distances
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
-    def __init__(self, n_neighbors=1):
+    def __init__(self, n_neighbors=1): # noqa: D107
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -92,7 +92,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def predict(self, X):
         """Predict class labels for test data.
-
         Parameters
         ----------
         X : ndarray, shape (n_test_samples, n_features)
@@ -103,14 +102,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-
         # prédit la classe de sortie:
         # pour chaque sample test X je dois:
         # - calculer la distance euclidienne entre le train et X
         # - identifier l'indice du plus proche voisin
         # - récup la classe
         # - compte les prédiction et retourne celle qui revient le plus
-
         def predict_single(sample):
             # indices des plus proches voisins -> distance euclidienne
             closest_indices = np.argsort(
