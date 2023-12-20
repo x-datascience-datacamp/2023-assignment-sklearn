@@ -1,0 +1,8 @@
+{
+    "julia.environmentPath": "c:\\Users\\matis\\OneDrive\\Documents\\ENSTA\\3A\\Datacamp\\2023-assignment-sklearn",
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}
