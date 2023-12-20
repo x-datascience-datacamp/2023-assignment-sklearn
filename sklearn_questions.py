@@ -96,11 +96,13 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         ----------
         X : ndarray, shape (n_test_samples, n_features)
             Data to predict on.
+
         Returns
         ----------
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
+
         def predict_single(sample):
             # indices des plus proches voisins -> distance euclidienne
             closest_indices = np.argsort(
