@@ -107,8 +107,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         y_pred = np.zeros(X.shape[0])
         for i, x_test in enumerate(X):
-            distances = pairwise_distances(X, self.X_)
-            indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
+            distances = pairwise_distances(X.reshape(-1, 1), self.X_)
+            indices = np.argsort(distances, axis=1)[0][:, :self.n_neighbors]
             unique, counts = np.unique(self.y_[indices], return_counts=True)
             y_pred[i] = unique[np.argmax(counts)]
         return y_pred
