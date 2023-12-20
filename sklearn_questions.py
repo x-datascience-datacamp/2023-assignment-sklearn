@@ -63,7 +63,7 @@ from pandas.api.types import is_datetime64_any_dtype
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
-    """KNearestNeighbors classifier. """
+    """KNearestNeighbors classifier."""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
@@ -192,7 +192,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
-
+        
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
