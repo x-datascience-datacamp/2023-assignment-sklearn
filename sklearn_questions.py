@@ -52,6 +52,7 @@ import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
+from sklearn.calibration import check_classification_targets
 from sklearn.metrics import pairwise_distances
 from sklearn.model_selection import BaseCrossValidator
 
@@ -82,6 +83,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The current instance of the classifier
         """
         X, y = check_X_y(X, y)
+        check_classification_targets(y)
         self.classes_ = np.unique(y)
         self.n_features_in_ = X.shape[1]
         if len(self.classes_) < 2:
