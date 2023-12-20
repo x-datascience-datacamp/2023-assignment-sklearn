@@ -168,7 +168,7 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        if not X[self.time_col].isinstance(datetime.datetime):
+        if not isinstance(X[self.time_col], datetime.datetime):
             raise ValueError('Not a a datetime')
         X['month'] = (X[self.time_col].strftime("%Y").astype(int)*12
                       + X[self.time_col].strftime("%m").astype(int))
@@ -195,7 +195,7 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        if not X[self.time_col].isinstance(datetime.datetime):
+        if not isinstance(X[self.time_col], datetime.datetime):
             raise ValueError('Not a a datetime')
         X['month'] = (X[self.time_col].strftime("%Y").astype(int)*12
                       + X[self.time_col].strftime("%m").astype(int))
