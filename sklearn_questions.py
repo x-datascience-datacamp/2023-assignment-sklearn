@@ -55,25 +55,19 @@ from sklearn.base import ClassifierMixin
 
 from sklearn.model_selection import BaseCrossValidator
 
-from sklearn.utils.multiclass import unique_labels
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import unique_labels
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
-    def __init__(self, n_neighbors=1):
+    def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
-        """
-        Initialize the KNearestNeighbors instance.
 
-        Parameters:
-        - self.
-        - n_neighbors.
-        """
     def fit(self, X, y):
         """Fitting function.
 
@@ -94,9 +88,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self.n_features_in_ = X.shape[1]
         self.classes_ = unique_labels(y)
         if len(self.classes_) < 2:
-            raise ValueError("Only one class present in the data.")
+            raise ValueError("You need more than one class.")
         self.X_ = X
         self.y_ = y
+
+        if self.n_neighbors > len(self.X_):
+            raise ValueError(
+                "Number of neighbors cannot be greater \
+                the number of training samples."
+                )
 
         return self
 
@@ -142,7 +142,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X)
         y_pred = self.predict(X)
-        return np.mean(y_pred == y)
+        return np.mean(y == y_pred)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -161,7 +161,7 @@ class MonthlySplit(BaseCrossValidator):
         To use the index as column just set `time_col` to `'index'`.
     """
 
-    def __init__(self, time_col='index'):
+    def __init__(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -182,15 +182,14 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        X_copy = X.copy()
-        if self.time_col == 'index':
-            X_copy = X.reset_index()
+        X_copy = X.reset_index() if self.time_col == 'index' else X.copy()
         if X_copy[self.time_col].dtype != 'datetime64[ns]':
-            raise ValueError("The column '{}' is not a datetime.".format(
-                self.time_col))
-        X_sort = X_copy.sort_values(by=self.time_col)
-        splits = X_sort[X_sort[self.time_col].dt.month.diff() != 0]
-        n_splits = len(splits)-1
+            raise ValueError(
+                f"The column '{self.time_col}' is not a datetime."
+                )
+        X_copy.sort_values(by=self.time_col, inplace=True)
+        month_changes = X_copy[self.time_col].dt.month.diff().ne(0)
+        n_splits = month_changes.sum() - 1
         return n_splits
 
     def split(self, X, y, groups=None):
@@ -215,12 +214,13 @@ class MonthlySplit(BaseCrossValidator):
         """
         X_copy = X.reset_index()
         n_splits = self.get_n_splits(X_copy, y, groups)
-        X_grouped = X_copy.sort_values(by=self.time_col).\
-            groupby(pd.Grouper(key=self.time_col, freq="M"))
+        X_grouped = X_copy.sort_values(
+            by=self.time_col
+            ).groupby(
+                pd.Grouper(key=self.time_col, freq="M")
+                )
         idxs = [group.index for _, group in X_grouped]
         for i in range(n_splits):
-            idx_train = list(idxs[i])
-            idx_test = list(idxs[i+1])
-            yield (
-                idx_train, idx_test
-            )
+            idx_train = idxs[i].tolist()
+            idx_test = idxs[i+1].tolist()
+            yield idx_train, idx_test
