@@ -69,7 +69,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """Fitting function.
 
-         Parameters
+        Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
             training data.
@@ -81,6 +81,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        
         X, y = check_X_y(X, y)
         check_classification_targets(y)
         self.X_ = X
@@ -92,6 +93,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
     def predict(self, X):
         """Predict function.
+
         Parameters
         ----------
         X : ndarray, shape (n_test_samples, n_features)
@@ -129,6 +131,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
+
         check_classification_targets(y)
         y_pred = self.predict(X)
         return np.mean(y_pred == y)
@@ -178,7 +181,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
-        
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
