@@ -193,8 +193,8 @@ class MonthlySplit(BaseCrossValidator):
         """
         X = X.reset_index()
         if not isinstance(X[self.time_col][0], pd.Timestamp):
-            raise ValueError(f"The '{self.time_col}' 
-                             column does not contain datetime.")
+            raise ValueError(f"The '{self.time_col}' "
+                             "column does not contain datetime.")
         unique_times = X[self.time_col].dt.to_period("M").unique()
         return len(unique_times) - 1
 
