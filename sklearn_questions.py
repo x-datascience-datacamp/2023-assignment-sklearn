@@ -11,7 +11,7 @@ Detailed instructions for question 1:
 The nearest neighbor classifier predicts for a point X_i the target y_k of
 the training sample X_k which is the closest to X_i. We measure proximity with
 the Euclidean distance. The model will be evaluated with the accuracy (average
-number of samples corectly classified). You need to implement the `fit`,
+number of samples corectly classified).You need to implement the `fit`,
 `predict` and `score` methods for this class. The code you write should pass
 the test we implemented. You can run the tests by calling at the root of the
 repo `pytest test_sklearn_questions.py`. Note that to be fully valid, a
@@ -82,6 +82,17 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        self.classes_ = check_classification_targets(y)
+        self.classes_, self.numerical_labels_ = np.unique(
+            y, return_inverse=True
+        )
+        self.num_to_text_mapping_ = {
+            idx: label for idx, label in enumerate(self.classes_)
+        }
+        self.n_features_in_ = X.shape[1]
+        self.X_train_ = X
+        self.y_train_ = y
         return self
 
     def predict(self, X):
@@ -97,8 +108,18 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+        X = check_array(X)
+        distances = pairwise_distances(X, self.X_train_)
+        k_nearest_indices = np.argpartition(
+            distances, self.n_neighbors, axis=1
+        )[:, : self.n_neighbors]
+        k_nearest_labels = self.numerical_labels_[k_nearest_indices]
+        y = np.array(
+            [np.bincount(labels).argmax() for labels in k_nearest_labels]
+        )
+        recovered_text_labels = np.vectorize(self.num_to_text_mapping_.get)(y)
+        return recovered_text_labels
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +136,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        X = check_array(X)
+        y_pred = self.predict(X)
+        accuracy = np.mean(y_pred == y)
+        return accuracy
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -134,7 +158,7 @@ class MonthlySplit(BaseCrossValidator):
         To use the index as column just set `time_col` to `'index'`.
     """
 
-    def __init__(self, time_col='index'):  # noqa: D107
+    def __init__(self, time_col="index"):  # noqa: D107
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -155,7 +179,12 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col != "index":
+            time_index = X[self.time_col].dt
+        else:
+            time_index = X.index
+
+        return time_index.strftime("%Y-%m").nunique() - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +206,25 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
+        X = pd.DataFrame(X)
+        if self.time_col != "index":
+            if X[self.time_col].dtype != "<M8[ns]":
+                raise ValueError("datetime")
+        else:
+            if X.index.dtype != "<M8[ns]":
+                raise ValueError("datetime")
         n_splits = self.get_n_splits(X, y, groups)
+        if self.time_col != "index":
+            time_index = X[self.time_col].dt
+        else:
+            time_index = X.index
+        months = np.sort(np.unique(time_index.strftime("%Y-%m")))
+        X["indices"] = np.arange(len(X))
+        if self.time_col != "index":
+            X_bis = X.reset_index().set_index(self.time_col).sort_index()
+        else:
+            X_bis = X.sort_index()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            idx_train = X_bis[months[i]: months[i]]["indices"].values
+            idx_test = X_bis[months[i + 1]: months[i + 1]]["indices"].values
+            yield (idx_train, idx_test)
