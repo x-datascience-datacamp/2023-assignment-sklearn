@@ -60,7 +60,6 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.utils.multiclass import unique_labels
-import datetime
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -92,7 +91,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             raise ValueError("There is only one class")
         self.X_ = X
         self.y_ = y
-
         return self
 
     def predict(self, X):
@@ -113,10 +111,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y_pred = []
         for i in range(X.shape[0]):
             distances = pairwise_distances(X[i].reshape(1, -1), self.X_)
-
-            distances = np.linalg.norm(X[i] - self.X_, axis=1)
             indices = np.argsort(distances)[:self.n_neighbors]
-            neighbors_labels = self.y_[indices] 
+            neighbors_labels = self.y_[indices]
             value, counts = np.unique(neighbors_labels, return_counts=True)
             pred_i = value[np.argmax(counts)]
             y_pred.append(pred_i)
@@ -211,7 +207,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         X = X.reset_index()
         n_splits = self.get_n_splits(X, y, groups)
         X_grouped = X.sort_values(by=self.time_col).\
