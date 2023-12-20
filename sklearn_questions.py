@@ -49,8 +49,6 @@ to compute distances between 2 sets of samples.
 """
 import numpy as np
 
-import pandas as pd
-
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 
@@ -61,6 +59,7 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.utils.multiclass import unique_labels
+from pandas.api.types import is_datetime64_any_dtype
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -185,37 +184,16 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        if not isinstance(X, (pd.DataFrame, pd.Series, np.ndarray)):
-            raise ValueError(
-                f"X should be a DataFrame or a numpy array, got {type(X)}\
-                instead."
-            )
-        if isinstance(X, np.ndarray):
-            X = pd.DataFrame(X)
-
-        if isinstance(X, pd.Series):
-            self.new_X = pd.to_datetime(X, errors="raise")
-        elif self.time_col == "index":
-            self.new_X = pd.to_datetime(X.index, errors="raise")
-        elif self.time_col.isdigit():
-            self.new_X = pd.to_datetime(X.iloc[:, int(self.time_col)], errors="raise")
+        if self.time_col == "index":  # verify we have the right type
+            self.X_ = X.copy()
+            if not is_datetime64_any_dtype(self.X_.index):
+                raise ValueError("Table index is not a datetime")
         else:
-            self.new_X = pd.to_datetime(X.loc[:, self.time_col], errors="raise")
-
-        assert (
-            self.new_X.dtype == "datetime64[ns]"
-        ), f"The column {self.time_col} should be of type datetime64[ns]."
-
-        self.new_X = pd.DataFrame(self.new_X)
-        self.new_X.columns = ["date"]
-        self.new_X["month"] = self.new_X["date"].dt.month
-        self.new_X["year"] = self.new_X["date"].dt.year
-
-        self.n_splits = 0
-        for y in self.new_X.year.unique():
-            selection = self.new_X[self.new_X.year == y]
-            self.n_splits += int(selection.month.nunique())
-        return self.n_splits - 1
+            self.X_ = X.reset_index().set_index(self.time_col)
+            if not is_datetime64_any_dtype(self.X_.index):
+                raise ValueError(f"{self.time_col} is not a datetime")
+        n_splits = self.X_.index.to_period("M").nunique()
+        return n_splits - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -238,14 +216,15 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        # n_samples = X.shape[0]
+        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
-        start_year = self.new_X.year.min()
+        period = self.X_.index.to_period("M")
+        months = period.unique().sort_values()
+        indexes = np.arange(n_samples)
         for i in range(n_splits):
-            idx_train = np.where(
-                (self.new_X.month <= (i) % 12) & (self.new_X.year == start_year)
-            )[0]
-            print(idx_train)
-            idx_test = np.where(self.new_X.month == i + 1)[0]
-            print(idx_test)
+            train = period == months[i]
+            test = period == months[i + 1]
+
+            idx_train = indexes[train]
+            idx_test = indexes[test]
             yield (idx_train, idx_test)
