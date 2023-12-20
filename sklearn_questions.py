@@ -91,7 +91,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X):
-        """Predict function.
+        """Predict class labels for each test data sample.
+
         Parameters
         ----------
         X : ndarray, shape (n_test_samples, n_features)
@@ -102,29 +103,19 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-
-        def predict_single(sample):
-            # indices des plus proches voisins -> distance euclidienne
-            closest_indices = np.argsort(
-                euclidean_distances(
-                    sample.reshape(1, -1),
-                    self.X_train_))[
-                              0, :self.n_neighbors]
-            # reshape = fait une matrice à 1 ligne :
-            # vérifie que les tailles matchent entre train et test
-            # récup labels
-            nearest_labels = self.y_train_[closest_indices]
-            # compte les labels et récupère le plus proche
-            unique_labels, label_counts = np.unique(
-                nearest_labels, return_counts=True)
-            return unique_labels[np.argmax(label_counts)]
-
-        # check des données sinon ça pète
         check_is_fitted(self)
         X = check_array(X)
 
-        # applique le predict sur toutes les lignes de X :
-        # retourne un tableau avec une pred pour chaque
+        def predict_single(sample):
+            closest_indices = np.argsort(
+                euclidean_distances(sample.reshape(1, -1), self.X_train_)
+            )[0, :self.n_neighbors]
+            nearest_labels = self.y_train_[closest_indices]
+            unique_labels, label_counts = np.unique(
+                nearest_labels, return_counts=True
+            )
+            return unique_labels[np.argmax(label_counts)]
+
         predictions = np.apply_along_axis(predict_single, 1, X)
         return predictions
 
