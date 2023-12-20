@@ -66,7 +66,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
-        """Init number of neighbors
+        """Init number of neighbors.
 
         Args:
             n_neighbors (int, optional): number of neighbors. Defaults to 1.
@@ -164,7 +164,7 @@ class MonthlySplit(BaseCrossValidator):
     """
 
     def __init__(self, time_col='index'):
-        """Init attributes
+        """Init attributes.
 
         Args:
             time_col (str, optional): column of the input DataFrame that will 
