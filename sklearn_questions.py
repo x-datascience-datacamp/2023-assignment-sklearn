@@ -105,7 +105,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self)
         X = check_array(X)
-        y_pred = np.zeros(X.shape[0])
+        y_pred = np.zeros(X.shape[0], dtype=self.y_.dtype)
         for i, x_test in enumerate(X):
             distances = pairwise_distances(x_test.reshape(1, -1), self.X_)
             indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
