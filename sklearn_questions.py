@@ -64,7 +64,7 @@ from sklearn.metrics import euclidean_distances
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
-    def __init__(self, n_neighbors=1):
+    def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -183,8 +183,7 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        # verify we have the right type
-        if self.time_col == "index":
+        if self.time_col == "index":  # verify we have the right type
             self.X_ = X.copy()
             if not is_datetime64_any_dtype(self.X_.index):
                 raise ValueError("a datetimeis needed but this is not one")
@@ -215,7 +214,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
         per = self.X_.index.to_period('M')
