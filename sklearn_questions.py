@@ -160,7 +160,7 @@ class MonthlySplit(BaseCrossValidator):
         self.time_col = time_col
 
     def set_index_time(self, X):
-        """Set (if necessary) and validate the time column as the index of the DataFrame.
+        """Set and validate the time column as the index of the DataFrame.
 
         Parameters
         ----------
