@@ -86,8 +86,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self.n_features = X.shape[1]
         if len(self.classes) < 2:
             raise ValueError("Need at least 2 classes.")
-        self.X_train = X
-        self.y_train = y
+        self.X_ = X
+        self.y_ = y
         return self
 
     def predict(self, X):
@@ -107,9 +107,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         y_pred = np.zeros(X.shape[0])
         for i, x_test in enumerate(X):
-            distances = np.sqrt(np.sum((self.X_train - x_test)**2, axis=1))
+            distances = np.sqrt(np.sum((self.X_ - x_test)**2, axis=1))
             indices = np.argsort(distances)[:self.n_neighbors]
-            y_pred[i] = np.bincount(self.y_train[indices]).argmax()
+            y_pred[i] = np.bincount(self.y_[indices]).argmax()
 
         return y_pred
 
@@ -177,7 +177,13 @@ class MonthlySplit(BaseCrossValidator):
             newX = newX.reset_index()
         if not is_datetime(newX[self.time_col]):
             raise ValueError(f"{self.time_col} should be of type datetime.")
-        return len(newX[self.time_col].dt.month.unique()) - 1
+        start_date = X[self.time_col].max()
+        end_date = X[self.time_col].min()
+        return (
+            12 * (start_date.year - end_date.year)
+            + start_date.month
+            - end_date.month
+        )
 
     def split(self, X, y=None, groups=None):
         """Generate indices to split data into training and test set.
