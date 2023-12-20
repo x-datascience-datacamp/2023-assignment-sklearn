@@ -192,7 +192,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
-        
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
@@ -210,7 +210,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
         period = self.X_.index.to_period('M')
