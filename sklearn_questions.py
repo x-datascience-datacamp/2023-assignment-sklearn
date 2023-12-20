@@ -111,7 +111,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         distances_array = pairwise_distances(X, self.X_, metric="euclidean")
 
-        smallest_indices = np.argsort(distances_array, axis=1)[:, : self.n_neighbors]
+        smallest_indices = np.argsort(distances_array,
+                                      axis=1)[:, : self.n_neighbors]
         nearest_labels = self.y_[smallest_indices]
 
         y_pred = []
