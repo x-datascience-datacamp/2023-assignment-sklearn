@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-# import pandas as pd
+import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -199,11 +199,10 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        # compter le nombre de mois (ici les)
-        dates = np.array(X.index)
-        dates = dates.astype('datetime64[M]')
-        len_dates = len(np.unique(dates))
-        return len_dates - 1
+        # Compter le nombre de mois distincts
+        dates = self._get_dates(X)
+        unique_months = pd.Series(dates).dt.to_period('M').unique()
+        return len(unique_months) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -225,30 +224,47 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        if self.time_col != 'index' and \
-                not isinstance(X[self.time_col].dtype, np.datetime64):
-            raise ValueError("The specified time_col \
-                             column is not a datetime.")
+        dates = self._get_dates(X)
+        if not pd.api.types.is_datetime64_any_dtype(dates):
+            raise ValueError(f"La colonne {self.time_col}\
+                             doit être de type datetime.")
+
         # n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
-        start_year = X.index.year.min()
-
+        if self.time_col == 'index':
+            start_year = X.index.year.min()
+        else:
+            start_year = dates.dt.year.min()
         for i in range(n_splits):
             # Sélectionner les mois pour les indices d'entraînement et de test
             # Calculer le mois et l'année pour l'entraînement et le test
             train_month = (i % 12) + 1
             test_month = ((i + 1) % 12) + 1
             train_year = start_year + (i // 12)
-            test_year = start_year + ((i + 1) // 12)
+            test_year = start_year + (i // 12)
             # Ajuster pour la transition de décembre à janvier
             if test_month == 1:
                 test_year += 1
             # Filtrer les indices en fonction du mois et de l'année
-            idx_train = np.where((X.index.month == train_month) &
-                                 (X.index.year == train_year))[0]
-            idx_test = np.where((X.index.month == test_month) &
-                                (X.index.year == test_year))[0]
+            if self.time_col == 'index':
+                idx_train = np.where((X.index.month == train_month) &
+                                     (X.index.year == train_year))[0]
+                idx_test = np.where((X.index.month == test_month) &
+                                    (X.index.year == test_year))[0]
+            else:
+                idx_train = np.where((dates.dt.month == train_month) &
+                                     (dates.dt.year == train_year))[0]
+                idx_test = np.where((dates.dt.month == test_month) &
+                                    (dates.dt.year == test_year))[0]
+
             if len(idx_test) > 0:
                 yield (
                     idx_train, idx_test
                 )
+
+    def _get_dates(self, X):
+        # Helper function to extract datetime data
+        if self.time_col == 'index':
+            return X.index
+        else:
+            return X[self.time_col]
