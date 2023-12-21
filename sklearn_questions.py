@@ -179,6 +179,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def __init__(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
+        # Check that the time_col is a datetime
 
     def get_n_splits(self, X, y=None, groups=None):
         """Return the number of splitting iterations in the cross-validator.
@@ -224,7 +225,10 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
+        if self.time_col != 'index' and \
+                not isinstance(X[self.time_col].dtype, np.datetime64):
+            raise ValueError("The specified time_col \
+                             column is not a datetime.")
         # n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
         start_year = X.index.year.min()
