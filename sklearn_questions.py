@@ -47,18 +47,19 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 to compute distances between 2 sets of samples.
 """
-import numpy as np
-import pandas as pd
 
+
+from collections import Counter
+import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 
 from sklearn.model_selection import BaseCrossValidator
-
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn.metrics.pairwise import pairwise_distances
+# from sklearn.metrics.pairwise import pairwise_distances
+# from PCM.PCM import plot_confusion_matrix
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,7 +83,59 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+        X = check_array(X)
+
+        # Check that the input contains only integers or floats
+        check_classification_targets(y)
+
+        self._X_train = X
+        self._y_train = y
+        self.classes_ = np.unique(y)  # on definie lle notre de classe qu'on a
+        # Définissez l'attribut n_features_in_ après l'ajustement
+        self.n_features_in_ = self._X_train.shape[1]
         return self
+
+    def eucludean_distance(self, x1, x2):
+        """Fitting function.
+
+         Parameters
+        ----------
+        x1 : ndarray, shape (n_samples, n_features)
+            Data to train the model.
+        x2 : ndarray, shape (n_samples,)
+            Labels associated with the training data.
+
+        Returns
+        ----------
+        dist : instance of KNearestNeighbors
+            The current instance of the classifier
+        """
+        dist = np. linalg. norm(x1 - x2, ord=2)
+        # dist = np.sqrt(np.sum(x1 - x2) ** 2)
+        # dist = pairwise_distances(x1, x2)
+        return dist
+
+    def _predict(self, x):
+        distances = [self.eucludean_distance(x, x_train)
+                     for x_train in self._X_train]
+        # distances = pairwise_distances(X, self.X_train)
+        # we return only the first n_neighbors index
+        neighbors_idxs = np.argsort(distances)[:self.n_neighbors]
+        neighbors_labels = [self._y_train[i] for i in neighbors_idxs]
+        # ou ca : k_labels = self.y_train[k_idxs]
+        # Ensuite on regarde la class qui apparait le plus
+        most_common = Counter(neighbors_labels).most_common(1)
+        prediction = most_common[0][0]
+
+        # Ou cette version
+        # return the occurance of each value indexé par la valeur
+        # neighbors_labels_bc = np.bincount(neighbors_labels)
+        # renvoie l'indice du max qui correspond à la class
+        # prediction = np.argmax(neighbors_labels_bc)
+
+        return prediction
 
     def predict(self, X):
         """Predict function.
@@ -97,8 +150,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        # Check if fit had been called
+        check_is_fitted(self)
+        # Validate input
+        X = check_array(X)
+        y_pred = [self._predict(x) for x in X]
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +172,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        X, y = check_X_y(X, y)
+        # Predict using the implemented predict method
+        y_predd = self.predict(X)
+        # Calculate accuracy
+        accuracy = np.mean(y_predd == y)
+        return accuracy
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +217,14 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        # Calcule le nombre de splits basé sur la logique mensuelle
+        # on a n-1 split à faire
+        X = X.reset_index()
+        if not np.issubdtype(X[self.time_col].dtype, np.datetime64):
+            raise ValueError(
+                'DataFrame should have at least one datetime column'
+            )
+        return (len(X[self.time_col].dt.to_period("M").unique()) - 1)
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +246,12 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index().resample("M",
+                                     on=self.time_col).apply(lambda x: x.index)
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = X.iloc[i].values
+            idx_test = X.iloc[i+1].values
             yield (
                 idx_train, idx_test
             )
