@@ -48,6 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
+import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -58,6 +59,8 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -92,6 +95,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 
         self.X_ = X
         self.y_ = y
+
+        self.n_features_in_ = X.shape[1]
 
         return self
 
@@ -130,9 +135,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         # get the most frequent label
         y_pred = self.classes_[np.argmax(counts, axis=1)]
 
-        # check y_pred
-        check_classification_targets(y_pred)
-        
         return y_pred
 
     def score(self, X, y):
@@ -197,7 +199,14 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        n_splits = X[self.time_col].dt.month.nunique() - 1
+        X_ = X.copy().reset_index()
+
+        if not is_datetime(X_[self.time_col]):
+            raise ValueError('The column {} is not a datetime.'.format(
+                self.time_col))
+        X_[self.time_col] = pd.to_datetime(X_[self.time_col])
+
+        n_splits = X_[self.time_col].dt.to_period('M').nunique() - 1
 
         return n_splits
 
@@ -222,17 +231,29 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
         n_splits = self.get_n_splits(X, y, groups)
-        for i in range(n_splits):
-            # take a sorted version of the data
-            X_ = X.sort_values(self.time_col)
 
+        X_ = X.copy().reset_index()
+
+        if not is_datetime(X_[self.time_col]):
+            raise ValueError('The column {} is not a datetime.'.format(
+                self.time_col))
+        X_[self.time_col] = pd.to_datetime(X_[self.time_col])
+
+        for i in range(n_splits):
             # get the months to split on
-            month_1 = X_[self.time_col].dt.month.unique()[i]
-            month_2 = X_[self.time_col].dt.month.unique()[i + 1]
+            month_1 = np.sort(X_[self.time_col].dt.to_period('M').unique())[i]
+            month_2 = np.sort(X_[self.time_col].dt.to_period('M').unique())[
+                i+1]
 
             # split the data into idx_train and idx_test
-            idx_train = X[X_[self.time_col].dt.month == month_1].index
-            idx_test = X[X_[self.time_col].dt.month == month_2].index
+            # idx_train = X_[X_sorted[self.time_col].dt.to_period('M') ==
+            #                month_1].index.to_numpy()
+            # idx_test = X_[X_sorted[self.time_col].dt.to_period('M') ==
+            #               month_2].index.to_numpy()
+            idx_train = np.where(X_[self.time_col].dt.to_period('M') ==
+                                 month_1)[0]
+            idx_test = np.where(X_[self.time_col].dt.to_period('M') ==
+                                month_2)[0]
 
             yield (
                 idx_train, idx_test
