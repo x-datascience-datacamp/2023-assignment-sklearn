@@ -104,16 +104,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
         check_is_fitted(self)
         X = check_array(X)
-        closest = pairwise_distances(X, metric='euclidean')
+        y_pred = np.zeros(X.shape[0], dtype=self.y_.dtype)
         for i, x_test in enumerate(X):
             distances = pairwise_distances(x_test.reshape(1, -1), self.X_)
             indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
             unique, counts = np.unique(self.y_[indices], return_counts=True)
             y_pred[i] = unique[np.argmax(counts)]
-        return self.y_[np.argsort(closest)[:, :self.n_neighbors]]
+        return y_pred
 
     def score(self, X, y):
         """Calculate the score of the prediction.
