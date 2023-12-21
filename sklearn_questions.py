@@ -60,6 +60,8 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 
+from sklearn.utils.multiclass import unique_labels
+
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
@@ -85,8 +87,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X, y = check_X_y(X, y)
         self.X_ = X
         self.y_ = y
-        self.classes_ = np.unique(y)
-        return self
+        self.n_features_in_ = X.shape[1]
+        self.classes_ = unique_labels(y)
 
     def predict(self, X):
         """Predict function.
@@ -106,16 +108,22 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         # Validating and converting the input data X to a NumPy array
         X = check_array(X)
 
-        # Computing the Euclidean distances between each data point in X and
-        # the training data self.X_
-        distances = pairwise_distances(X, self.X_)
-        # Obtaining the indices of the nearest neighbors for each data point
-        indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
-        nearest_labels = self.y_[indices]
+        y_pred = np.zeros(X.shape[0])
 
-        # Using a simple majority vote to predict the class
-        y_pred = np.apply_along_axis(
-            lambda x: np.bincount(x).argmax(), axis=1, arr=nearest_labels)
+        # Loop over the test points
+        for i, x in enumerate(X):
+            # Computing the Euclidean distances between each data point in
+            # X and the training data self.X_
+            dist = pairwise_distances(x.reshape(1, -1),
+                                      self.X_train_,
+                                      metric='euclidean')
+            # Obtaining the indices of the nearest neighbors for each data
+            # point
+            neighbors = np.argsort(dist)[0, :self.n_neighbors]
+            # Get the labels of the neighbors
+            values, counts = np.unique(self.y_train_[neighbors],
+                                       return_counts=True)
+            y_pred[i] = values[np.argmax(counts)]
 
         return y_pred
 
@@ -137,15 +145,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         # Including the necessary input validation using
         # check_is_fitted and check_array
         check_is_fitted(self, ['X_', 'y_'])
+        X, y = check_X_y(X, y)
         X = check_array(X)
         # Ensuring that the target values y are valid classification targets
-        y = check_classification_targets(y)
+        check_classification_targets(y)
 
         # Obtaining predictions
         y_pred = self.predict(X)
 
         # Calculating accuracy
-        accuracy = np.mean(y_pred == y)
+        accuracy = np.sum(y_pred == y) / y.shape[0]
 
         return accuracy
 
