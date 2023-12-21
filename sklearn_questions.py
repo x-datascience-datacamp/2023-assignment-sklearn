@@ -63,11 +63,7 @@ from sklearn.utils.multiclass import check_classification_targets
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
-    """KNearestNeighbors classifier.
-    On regarde les k voisins le plus proche
-    si k=9 et nous avions 5 voisins le plus proche de couleur rouge, 3 de
-    couleur bleue et 1 de couleur orange,, le nouveau point appartiendra
-      au groupe de couleur rouge"""
+     """KNearestNeighbors classifier."""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
@@ -102,6 +98,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         return self
 
     def eucludean_distance(self, x1, x2):
+        """Fitting function.
+
+         Parameters
+        ----------
+        x1 : ndarray, shape (n_samples, n_features)
+            Data to train the model.
+        x2 : ndarray, shape (n_samples,)
+            Labels associated with the training data.
+
+        Returns
+        ----------
+        dist : instance of KNearestNeighbors
+            The current instance of the classifier
+        """
         dist = np. linalg. norm(x1 - x2, ord=2)
         # dist = np.sqrt(np.sum(x1 - x2) ** 2)
         # dist = pairwise_distances(x1, x2)
