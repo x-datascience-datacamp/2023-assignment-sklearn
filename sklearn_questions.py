@@ -38,7 +38,6 @@ calling `flake8` at the root of the repo.
 Finally, you need to write docstrings for the methods you code and for the
 class. The docstring will be checked using `pydocstyle` that you can also
 call at the root of the repo.
-
 Hints
 -----
 - You can use the function:
@@ -48,7 +47,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -60,11 +58,14 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 
+from pandas.api.types import is_datetime64_any_dtype
+from collections import Counter
+
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
-    def __init__(self, n_neighbors=1):  # noqa: D107
+    def _init_(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -82,6 +83,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Checks
+        check_classification_targets(y)
+        X, y = check_X_y(X, y)
+
+        # stock the currend state
+        self.n_features_in_ = X.shape[1]
+        self.classes_ = np.unique(y)
+        self.X_ = X
+        self.y_ = y
+
         return self
 
     def predict(self, X):
@@ -97,8 +108,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+        check_array(X)
+        # trier les valeurs de distances pour chaque X
+        dist = pairwise_distances(X, self.X_)
+        dist_sort_pos = np.argsort(dist, axis=1)[:, :self.n_neighbors]
+        y_closest = self.y_[dist_sort_pos]
+
+        y_pred = [max(Counter(row), key=Counter(row).get) for row in y_closest]
+
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,13 +134,18 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        check_array(X)
+        check_classification_targets(y)
+        preds = self.predict(X)
+
+        return (preds == y).sum() / preds.shape[0]
 
 
 class MonthlySplit(BaseCrossValidator):
     """CrossValidator based on monthly split.
 
-    Split data based on the given `time_col` (or default to index). Each split
+    Split data based on the given time_col (or default to index). Each split
     corresponds to one month of data for the training and the next month of
     data for the test.
 
@@ -131,10 +155,10 @@ class MonthlySplit(BaseCrossValidator):
         Column of the input DataFrame that will be used to split the data. This
         column should be of type datetime. If split is called with a DataFrame
         for which this column is not a datetime, it will raise a ValueError.
-        To use the index as column just set `time_col` to `'index'`.
+        To use the index as column just set time_col to 'index'.
     """
 
-    def __init__(self, time_col='index'):  # noqa: D107
+    def _init_(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -143,8 +167,8 @@ class MonthlySplit(BaseCrossValidator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data, where `n_samples` is the number of samples
-            and `n_features` is the number of features.
+            Training data, where n_samples is the number of samples
+            and n_features is the number of features.
         y : array-like of shape (n_samples,)
             Always ignored, exists for compatibility.
         groups : array-like of shape (n_samples,)
@@ -155,7 +179,15 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X = X.reset_index()
+
+        if not is_datetime64_any_dtype(X[self.time_col]):
+            raise ValueError("Not in a datetimeFormat")
+
+        date = X[self.time_col]
+        date_y_m = date.apply(lambda x: str(x.year) + str(x.month))
+
+        return date_y_m.unique().shape[0] - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -163,8 +195,8 @@ class MonthlySplit(BaseCrossValidator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data, where `n_samples` is the number of samples
-            and `n_features` is the number of features.
+            Training data, where n_samples is the number of samples
+            and n_features is the number of features.
         y : array-like of shape (n_samples,)
             Always ignored, exists for compatibility.
         groups : array-like of shape (n_samples,)
@@ -177,12 +209,25 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
+        X = X.reset_index()
+        X = X.sort_values(by=self.time_col)
         n_splits = self.get_n_splits(X, y, groups)
+        date = X[self.time_col]
+        date_y_m = date.apply(lambda x: str(x.year) + str(x.month))
+        date_y_m = date_y_m.unique()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            date_i = date_y_m[i]
+            year = int(date_i[0:4])
+            month = int(date_i[4:])
+            train_idx = X[
+                (date.dt.year == year) & (date.dt.month == month)
+                ].index.to_numpy()
+
+            date_i1 = date_y_m[i+1]
+            year = int(date_i1[0:4])
+            month = int(date_i1[4:])
+            test_idx = X[
+                (date.dt.year == year) & (date.dt.month == month)
+                ].index.to_numpy()
+
+            yield train_idx, test_idx
