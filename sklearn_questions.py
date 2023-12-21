@@ -130,6 +130,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         # get the most frequent label
         y_pred = self.classes_[np.argmax(counts, axis=1)]
 
+        # check y_pred
+        check_classification_targets(y_pred)
+        
         return y_pred
 
     def score(self, X, y):
