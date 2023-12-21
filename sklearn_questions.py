@@ -63,12 +63,13 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 
 def most_common_label(array):
-    """_summary_
+    """Return the most common label in the array.
     Args:
         array : the array of labels
     Returns:
         most_common : the most common label in the array
     """
+    
     counter = Counter(array)
     most_common = counter.most_common(1)
     # If there is a tie for the most common label, this will return the first \
@@ -240,6 +241,8 @@ class MonthlySplit(BaseCrossValidator):
 
 
 def main():
+    """Main function to test the classes.
+    """    
     # Create a DataFrame with a datetime column
     date_range = pd.date_range(start='1/1/2020', end='1/1/2022', freq='D')
     df = pd.DataFrame({
