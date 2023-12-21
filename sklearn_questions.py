@@ -21,7 +21,6 @@ You can find more information on how they should be used in the following doc:
 https://scikit-learn.org/stable/developers/develop.html#rolling-your-own-estimator.
 Make sure to use them to pass `test_nearest_neighbor_check_estimator`.
 
-aaaaaaaaaaaaaaaaaaa
 
 Detailed instructions for question 2:
 The data to split should contain the index or one column in
@@ -49,7 +48,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -60,6 +58,9 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+
+from pandas.api.types import is_datetime64_any_dtype
+from collections import Counter
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -74,15 +75,46 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
          Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
-            Data to train the model.
+            Data to train the model (X_train).
         y : ndarray, shape (n_samples,)
-            Labels associated with the training data.
+            Labels associated with the training data (y_train).
 
         Returns
         ----------
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Checks
+
+        """
+        The check_classification_targets function ensures that target y is of
+        a non-regression type. Only the following target types
+        (as defined in type_of_target) are allowed: 'binary', 'multiclass',
+        'multiclass-multioutput', 'multilabel-indicator',
+        'multilabel-sequences'.
+        """
+        check_classification_targets(y)
+
+        """
+        The check_X_y function performs an input validation for standard
+        estimators (=models). It checks X and y for consistent length,
+        enforces X to be 2D and y 1D. By default, X is checked to be non-empty
+        and containing only finite values. Standard input checks are also
+        applied to y, such as checking that y does not have np.nan or np.inf
+        targets.For multi-label y, set multi_output=True to allow 2D and
+        sparse y. If the dtype of X is object, attempt converting to
+        float, raising on failure.
+        """
+        X, y = check_X_y(X, y)
+
+        # Number of instances
+        self.n_features_in_ = X.shape[1]
+        # Classes of y
+        self.classes_ = np.unique(y)
+        # Instance of X and y as objects of the class
+        self.X_ = X
+        self.y_ = y
+
         return self
 
     def predict(self, X):
@@ -91,15 +123,99 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         Parameters
         ----------
         X : ndarray, shape (n_test_samples, n_features)
-            Data to predict on.
+            Data to predict on (X_test).
 
         Returns
         ----------
         y : ndarray, shape (n_test_samples,)
-            Predicted class labels for each test data sample.
+            Predicted class labels for each test data sample (y_test).
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+
+        """
+        The check_is_fitted function is a sklearn.utils.validation function
+        used to check whether an estimator (such as a classifier or regressor)
+        has been fitted, i.e. whether it has been trained on input data.
+        If the estimator has not been fitted, check_is_fitted will throw
+        an error.
+        """
+        check_is_fitted(self)
+
+        """
+        The check_array function is a sklearn.utils.validation function used
+        to validate whether an input array is suitable for use in scikit-learn
+        estimators. This function checks several things, such as whether the
+        array is numeric, whether it has a specific number of dimensions
+        (e.g. 2D for arrays), and whether it contains missing values
+        (NaN or infinite), among other checks. If the array does not meet
+        these requirements, check_array will throw an error.
+        """
+        check_array(X)
+
+        # Calculate pairwise distances
+        """
+        pairwise_distances(X, self.X_):
+        This function computes the distance from each sample in X (X_test)
+        to every sample in self.X_ (X_train). X is the data for which
+        predictions are being made, and self.X_ is the training data that
+        the model has been fitted on. The result is a distance matrix
+        dist_matrix where each entry [i, j] represents the distance between
+        the i-th sample in X and the j-th sample in self.X_.
+        """
+        dist_matrix = pairwise_distances(X, self.X_)
+
+        # Find Indices of Nearest Neighbors
+        """
+        np.argsort(dist_matrix, axis=1):
+        This function sorts each row of dist_matrix in ascending order and
+        returns the indices of the sorted elements. The sorting is done
+        row-wise, meaning for each sample in X, we get the indices of the
+        training samples (self.X_) in order of increasing distance.
+
+        [:, :self.n_neighbors]: This slicing operation takes the first
+        self.n_neighbors indices for each row. These are the indices of
+        the nearest neighbors.
+        """
+        dist_sort_pos = np.argsort(dist_matrix, axis=1)[:, :self.n_neighbors]
+
+        # Find Indices of Nearest Neighbors
+        """
+        np.argsort(dist_matrix, axis=1):
+        This function sorts each row of dist_matrix in ascending order and
+        returns the indices of the sorted elements. The sorting is done
+        row-wise, meaning for each sample in X, we get the indices of the
+        training samples (self.X_) in order of increasing distance.
+
+        [:, :self.n_neighbors]:
+        This slicing operation takes the first self.n_neighbors
+        indices for each row. These are the indices of the nearest neighbors.
+        """
+
+        # Get labels of nearest neighbors
+        """
+        self.y_ (y_train) is the array of labels corresponding to the training
+        data self.X_, and self.y_[dist_sort_pos] uses the indices in
+        dist_sort_pos to gather the labels of the nearest neighbors for
+        each sample in X.
+        """
+        y_closest = self.y_[dist_sort_pos]
+
+        # Determine predicted values
+        """
+        This line predicts the label for each sample in X based on the
+        majority vote among its nearest neighbors.
+
+        Counter(row):
+        For each row in y_closest, a Counter object is
+        created to count the frequency of each label among the nearest
+        neighbors.
+
+        max(Counter(row), key=Counter(row).get):
+        This finds the label with the highest frequency (the most
+        common label) among the nearest neighbors for each sample in X.
+        """
+        y_pred = [max(Counter(row), key=Counter(row).get) for row in y_closest]
+
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -107,16 +223,22 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
-            Data to score on.
+            Data to score on (X_test).
         y : ndarray, shape (n_samples,)
-            target values.
+            target values (Y_test).
 
         Returns
         ----------
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        check_array(X)
+        check_classification_targets(y)
+        preds = self.predict(X)
+
+        # pres.shape[0] is the number of instances predicted, like len
+        return (preds == y).sum() / preds.shape[0]
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -156,7 +278,15 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X = X.reset_index()
+
+        if not is_datetime64_any_dtype(X[self.time_col]):
+            raise ValueError("Not in a datetimeFormat")
+
+        date = X[self.time_col]
+        date_y_m = date.apply(lambda x: str(x.year) + str(x.month))
+
+        return date_y_m.unique().shape[0] - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -178,12 +308,19 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
+        X = X.reset_index()
+        X = X.sort_values(by=self.time_col)
         n_splits = self.get_n_splits(X, y, groups)
+        date = X[self.time_col]
+        date_y_m = date.apply(lambda x: str(x.year) + str(x.month)).unique()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            year, month = int(date_y_m[i][0:4]), int(date_y_m[i][4:])
+            train_idx = X[
+                (date.dt.year == year) & (date.dt.month == month)
+                ].index.to_numpy()
+            year, month = int(date_y_m[i+1][0:4]), int(date_y_m[i+1][4:])
+            test_idx = X[
+                (date.dt.year == year) & (date.dt.month == month)
+                ].index.to_numpy()
+
+            yield train_idx, test_idx
