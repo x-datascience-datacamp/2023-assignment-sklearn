@@ -48,7 +48,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -82,6 +81,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        self.n_features_in_ = X.shape[1]  # add this line
+        check_classification_targets(y)
+        self.classes_, y = np.unique(y, return_inverse=True)
+        self.X_ = X
+        self.y_ = y
         return self
 
     def predict(self, X):
@@ -97,8 +102,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+        X = check_array(X)
+        dist = pairwise_distances(X, self.X_)
+        indices = np.argsort(dist, axis=1)[:, :self.n_neighbors]
+        votes = self.y_[indices]
+        y_pred = np.apply_along_axis(lambda x: np.argmax(np.bincount(x)),
+                                     axis=1, arr=votes)
+        return self.classes_[y_pred]
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +126,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        from sklearn.metrics import accuracy_score
+        return accuracy_score(y, self.predict(X))
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +167,12 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X = X.reset_index()
+
+        if not np.issubdtype(X[self.time_col].dtype, np.datetime64):
+            raise ValueError("`time_col` must be of datetime type")
+
+        return len(X[self.time_col].dt.to_period('M').unique()) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -178,11 +195,10 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index().resample("M",
+                                     on=self.time_col).apply(lambda x: x.index)
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            idx_train = X.iloc[i].values
+            idx_test = X.iloc[i+1].values
+            yield (idx_train, idx_test)
