@@ -47,75 +47,96 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 to compute distances between 2 sets of samples.
 """
-import numpy as np
-import pandas as pd
 
+
+from collections import Counter
+import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 
 from sklearn.model_selection import BaseCrossValidator
-
+import pandas as pd
+from sklearn.utils import shuffle
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
-from sklearn.metrics.pairwise import pairwise_distances
+# from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.datasets import load_iris
+from sklearn. model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.neighbors import KNeighborsClassifier
+# from PCM.PCM import plot_confusion_matrix
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
-    """KNearestNeighbors classifier."""
+    """KNearestNeighbors classifier.
+    On regarde les k voisins le plus proche
+    si k=9 et nous avions 5 voisins le plus proche de couleur rouge, 3 de
+    couleur bleue et 1 de couleur orange,, le nouveau point appartiendra
+      au groupe de couleur rouge"""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
-        """Fitting function.
 
-         Parameters
-        ----------
-        X : ndarray, shape (n_samples, n_features)
-            Data to train the model.
-        y : ndarray, shape (n_samples,)
-            Labels associated with the training data.
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+        X = check_array(X)
 
-        Returns
-        ----------
-        self : instance of KNearestNeighbors
-            The current instance of the classifier
-        """
+        # Check that the input contains only integers or floats
+        check_classification_targets(y)
+
+        self._X_train = X
+        self._y_train = y
+        self.classes_ = np.unique(y)  # on definie lle notre de classe qu'on a
+        # Définissez l'attribut n_features_in_ après l'ajustement
+        self.n_features_in_ = self._X_train.shape[1]
         return self
 
+    def eucludean_distance(self, x1, x2):
+        dist = np. linalg. norm(x1 - x2, ord=2)
+        # dist = np.sqrt(np.sum(x1 - x2) ** 2)
+        # dist = pairwise_distances(x1, x2)
+        return dist
+
+    def _predict(self, x):
+        distances = [self.eucludean_distance(x, x_train)
+                     for x_train in self._X_train]
+        # distances = pairwise_distances(X, self.X_train)
+        # we return only the first n_neighbors index
+        neighbors_idxs = np.argsort(distances)[:self.n_neighbors]
+        neighbors_labels = [self._y_train[i] for i in neighbors_idxs]
+        # ou ca : k_labels = self.y_train[k_idxs]
+
+        # Ensuite on regarde la class qui apparait le plus
+        most_common = Counter(neighbors_labels).most_common(1)
+        prediction = most_common[0][0]
+
+        # Ou cette version
+        # return the occurance of each value indexé par la valeur
+        # neighbors_labels_bc = np.bincount(neighbors_labels)
+        # renvoie l'indice du max qui correspond à la class
+        # prediction = np.argmax(neighbors_labels_bc)
+
+        return prediction
+
     def predict(self, X):
-        """Predict function.
-
-        Parameters
-        ----------
-        X : ndarray, shape (n_test_samples, n_features)
-            Data to predict on.
-
-        Returns
-        ----------
-        y : ndarray, shape (n_test_samples,)
-            Predicted class labels for each test data sample.
-        """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        # Check if fit had been called
+        check_is_fitted(self)
+        # Validate input
+        X = check_array(X)
+        y_pred = [self._predict(x) for x in X]
+        return np.array(y_pred)
 
     def score(self, X, y):
-        """Calculate the score of the prediction.
 
-        Parameters
-        ----------
-        X : ndarray, shape (n_samples, n_features)
-            Data to score on.
-        y : ndarray, shape (n_samples,)
-            target values.
-
-        Returns
-        ----------
-        score : float
-            Accuracy of the model computed for the (X, y) pairs.
-        """
-        return 0.
+        X, y = check_X_y(X, y)
+        # Predict using the implemented predict method
+        y_predd = self.predict(X)
+        # Calculate accuracy
+        accuracy = np.mean(y_predd == y)
+        return accuracy
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +176,14 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        # Calcule le nombre de splits basé sur la logique mensuelle
+        # on a n-1 split à faire
+        X = X.reset_index()
+        if not np.issubdtype(X[self.time_col].dtype, np.datetime64):
+            raise ValueError(
+                'DataFrame should have at least one datetime column'
+            )
+        return (len(X[self.time_col].dt.to_period("M").unique()) - 1)
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +205,55 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index().resample("M",
+                                     on=self.time_col).apply(lambda x: x.index)
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = X.iloc[i].values
+            idx_test = X.iloc[i+1].values
             yield (
                 idx_train, idx_test
             )
+
+
+# print(next(my_generator))  # Affiche 3
+
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+                                                    random_state=4)
+
+k = 7
+knn_own = KNearestNeighbors(n_neighbors=k)
+knn_own.fit(X_train, y_train)
+y_pred = knn_own.predict(X_test)
+print("Accuracy Scoreis of fake:", knn_own.score(X_test, y_test))
+cm = confusion_matrix(y_test, y_pred)
+print(cm)
+# plot_confusion_matrix(cm, classes=['Class 1', 'Class 2', 'Class 3'])
+knn2 = KNeighborsClassifier(n_neighbors=k)
+y_pred_sk = knn2.fit(X_train, y_train).predict(X_test)
+print("Accuracy Scoreis of real:", accuracy_score(y_test, y_pred_sk))
+print(confusion_matrix(y_test, y_pred_sk))
+
+end_date = '2021-01-31'
+expected_splits = 12
+date = pd.date_range(start='2020-01-01', end=end_date, freq='D')
+n_samples = len(date)
+X = pd.DataFrame(range(n_samples), index=date, columns=['val'])
+y = pd.DataFrame(
+    np.array([i % 2 for i in range(n_samples)]),
+    index=date
+)
+shuffle_data = True
+if shuffle_data:
+    X, y = shuffle(X, y, random_state=0)
+# print(X)
+X_1d = X['val']
+# print(X_1d)
+cv = MonthlySplit()
+cv_repr = "MonthlySplit(time_col='index')"
+# Test if the repr works without any errors
+print(list(cv.split(X, y)))
+assert cv_repr == repr(cv)
+# Test if get_n_splits works correctly
+assert cv.get_n_splits(X, y) == expected_splits
