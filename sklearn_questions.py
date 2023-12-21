@@ -47,10 +47,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 to compute distances between 2 sets of samples.
 """
-from ctypes import string_at
-from sys import implementation
 import numpy as np
-import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -210,7 +207,7 @@ class MonthlySplit(BaseCrossValidator):
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
 
-        Caution! this is a generator type function, it does not have return, 
+        Caution! this is a generator type function, it does not have return,
         it uses yield.
 
         Parameters
