@@ -63,7 +63,7 @@ from sklearn.utils.multiclass import check_classification_targets
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
-     """KNearestNeighbors classifier."""
+    """KNearestNeighbors classifier."""
 
     def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
