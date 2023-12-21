@@ -60,6 +60,8 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
+
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
@@ -82,6 +84,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+
+        # check that y corresponds to a classification problem
+        check_classification_targets(y)
+
+        # Store the classes seen during fit
+        self.classes_ = np.unique(y)
+
+        self.X_ = X
+        self.y_ = y
+
+        self.n_features_in_ = X.shape[1]
+
         return self
 
     def predict(self, X):
@@ -97,7 +113,28 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        # Check is fit had been called
+        check_is_fitted(self)
+
+        # Input validation
+        X = check_array(X)
+
+        # K nearest neighbors
+        dist = pairwise_distances(X, self.X_)
+        idx = np.argsort(dist, axis=1)[:, :self.n_neighbors]
+
+        # get their labels
+        y_neighbors = self.y_[idx]
+
+        # comput the counts of each label
+        counts = np.zeros((X.shape[0], len(self.classes_)))
+        for k in range(len(self.classes_)):
+            counts[:, k] = np.count_nonzero(y_neighbors == self.classes_[k],
+                                            axis=1)
+
+        # get the most frequent label
+        y_pred = self.classes_[np.argmax(counts, axis=1)]
+
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +152,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # Input validation
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+
+        # predict
+        y_pred = self.predict(X)
+
+        return np.mean(y == y_pred)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +199,16 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X_ = X.copy().reset_index()
+
+        if not is_datetime(X_[self.time_col]):
+            raise ValueError('The column {} is not a datetime.'.format(
+                self.time_col))
+        X_[self.time_col] = pd.to_datetime(X_[self.time_col])
+
+        n_splits = X_[self.time_col].dt.to_period('M').nunique() - 1
+
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +230,31 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+
+        X_ = X.copy().reset_index()
+
+        if not is_datetime(X_[self.time_col]):
+            raise ValueError('The column {} is not a datetime.'.format(
+                self.time_col))
+        X_[self.time_col] = pd.to_datetime(X_[self.time_col])
+
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            # get the months to split on
+            month_1 = np.sort(X_[self.time_col].dt.to_period('M').unique())[i]
+            month_2 = np.sort(X_[self.time_col].dt.to_period('M').unique())[
+                i+1]
+
+            # split the data into idx_train and idx_test
+            # idx_train = X_[X_sorted[self.time_col].dt.to_period('M') ==
+            #                month_1].index.to_numpy()
+            # idx_test = X_[X_sorted[self.time_col].dt.to_period('M') ==
+            #               month_2].index.to_numpy()
+            idx_train = np.where(X_[self.time_col].dt.to_period('M') ==
+                                 month_1)[0]
+            idx_test = np.where(X_[self.time_col].dt.to_period('M') ==
+                                month_2)[0]
+
             yield (
                 idx_train, idx_test
             )
