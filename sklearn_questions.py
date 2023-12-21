@@ -59,6 +59,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from collections import Counter
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +83,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+        # store the number of features
+        self.n_features_in_ = X.shape[1]
+        # Check that y is of type int
+        check_classification_targets(y)
+        # Store the classes seen during fit
+        self.classes_ = np.unique(y)
+        # Store the number of classes
+        self.n_classes_ = len(self.classes_)
+        # Store the training data
+        self.X_train_ = X
+        # Store the training labels
+        self.y_train_ = y
         return self
 
     def predict(self, X):
@@ -97,7 +112,27 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self, ['X_train_', 'y_train_'])
+        X = check_array(X)
+        if X.shape[1] != self.X_train_.shape[1]:
+            raise ValueError("Inconsistent number of features.")
+
+        # Calcul des distances et recherche des k plus proches voisins
+        distances = pairwise_distances(X, self.X_train_)
+        nearest_neighbor_indices = (
+            np.argsort(distances, axis=1)[:, :self.n_neighbors]
+        )
+        # Function for finding the most common label in a set of indices
+
+        def most_common_label(indices):
+            """Find the most common label in a set of indices."""
+            neighbor_labels = self.y_train_[indices]
+            return Counter(neighbor_labels).most_common(1)[0][0]
+
+        # Apply this function to each set of indices
+        y_pred = np.apply_along_axis(
+            most_common_label, 1, nearest_neighbor_indices
+            )
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +150,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # Check that X and y have correct shape
+        X, y = check_X_y(X, y)
+        # Check that the model is fitted
+        check_is_fitted(self)
+        # compute the predicted labels from the predict function define above
+        y_pred = self.predict(X)
+        # compute the score
+        score = np.mean(y_pred == y)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -136,6 +179,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def __init__(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
+        # Check that the time_col is a datetime
 
     def get_n_splits(self, X, y=None, groups=None):
         """Return the number of splitting iterations in the cross-validator.
@@ -155,7 +199,10 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        # Compter le nombre de mois distincts
+        dates = self._get_dates(X)
+        unique_months = pd.Series(dates).dt.to_period('M').unique()
+        return len(unique_months) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +224,47 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
+        dates = self._get_dates(X)
+        if not pd.api.types.is_datetime64_any_dtype(dates):
+            raise ValueError(f"La colonne {self.time_col}\
+                             doit être de type datetime.")
 
-        n_samples = X.shape[0]
+        # n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        if self.time_col == 'index':
+            start_year = X.index.year.min()
+        else:
+            start_year = dates.dt.year.min()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            # Sélectionner les mois pour les indices d'entraînement et de test
+            # Calculer le mois et l'année pour l'entraînement et le test
+            train_month = (i % 12) + 1
+            test_month = ((i + 1) % 12) + 1
+            train_year = start_year + (i // 12)
+            test_year = start_year + (i // 12)
+            # Ajuster pour la transition de décembre à janvier
+            if test_month == 1:
+                test_year += 1
+            # Filtrer les indices en fonction du mois et de l'année
+            if self.time_col == 'index':
+                idx_train = np.where((X.index.month == train_month) &
+                                     (X.index.year == train_year))[0]
+                idx_test = np.where((X.index.month == test_month) &
+                                    (X.index.year == test_year))[0]
+            else:
+                idx_train = np.where((dates.dt.month == train_month) &
+                                     (dates.dt.year == train_year))[0]
+                idx_test = np.where((dates.dt.month == test_month) &
+                                    (dates.dt.year == test_year))[0]
+
+            if len(idx_test) > 0:
+                yield (
+                    idx_train, idx_test
+                )
+
+    def _get_dates(self, X):
+        # Helper function to extract datetime data
+        if self.time_col == 'index':
+            return X.index
+        else:
+            return X[self.time_col]
