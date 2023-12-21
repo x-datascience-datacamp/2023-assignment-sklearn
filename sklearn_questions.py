@@ -55,16 +55,10 @@ from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 
 from sklearn.model_selection import BaseCrossValidator
-import pandas as pd
-from sklearn.utils import shuffle
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 # from sklearn.metrics.pairwise import pairwise_distances
-from sklearn.datasets import load_iris
-from sklearn. model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, accuracy_score
-from sklearn.neighbors import KNeighborsClassifier
 # from PCM.PCM import plot_confusion_matrix
 
 
@@ -79,6 +73,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
+        """Fitting function.
+
+         Parameters
+        ----------
+        X : ndarray, shape (n_samples, n_features)
+            Data to train the model.
+        y : ndarray, shape (n_samples,)
+            Labels associated with the training data.
+
+        Returns
+        ----------
+        self : instance of KNearestNeighbors
+            The current instance of the classifier
+        """
         # Check that X and y have correct shape
         X, y = check_X_y(X, y)
         X = check_array(X)
@@ -120,6 +128,18 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         return prediction
 
     def predict(self, X):
+        """Predict function.
+
+        Parameters
+        ----------
+        X : ndarray, shape (n_test_samples, n_features)
+            Data to predict on.
+
+        Returns
+        ----------
+        y : ndarray, shape (n_test_samples,)
+            Predicted class labels for each test data sample.
+        """
         # Check if fit had been called
         check_is_fitted(self)
         # Validate input
@@ -128,6 +148,20 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         return np.array(y_pred)
 
     def score(self, X, y):
+        """Calculate the score of the prediction.
+
+        Parameters
+        ----------
+        X : ndarray, shape (n_samples, n_features)
+            Data to score on.
+        y : ndarray, shape (n_samples,)
+            target values.
+
+        Returns
+        ----------
+        score : float
+            Accuracy of the model computed for the (X, y) pairs.
+        """
         X, y = check_X_y(X, y)
         # Predict using the implemented predict method
         y_predd = self.predict(X)
@@ -211,4 +245,3 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_train, idx_test
             )
-
