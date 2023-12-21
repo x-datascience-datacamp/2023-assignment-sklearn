@@ -60,8 +60,6 @@ from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
 
-from sklearn.utils.multiclass import unique_labels
-
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
@@ -84,11 +82,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Necessary checkings
         X, y = check_X_y(X, y)
-        self.X_ = X
-        self.y_ = y
+        # Check that y is a binary vector
+        check_classification_targets(y)
+        self.X_train_ = X
+        self.y_train_ = y
+        self.classes_ = np.unique(y)
         self.n_features_in_ = X.shape[1]
-        self.classes_ = unique_labels(y)
 
     def predict(self, X):
         """Predict function.
@@ -108,7 +109,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         # Validating and converting the input data X to a NumPy array
         X = check_array(X)
 
-        y_pred = np.zeros(X.shape[0])
+        y_pred = np.zeros(X.shape[0], dtype=self.y_train_.dtype)
 
         # Loop over the test points
         for i, x in enumerate(X):
