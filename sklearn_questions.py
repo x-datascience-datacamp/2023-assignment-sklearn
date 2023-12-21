@@ -219,9 +219,7 @@ class MonthlySplit(BaseCrossValidator):
             Always ignored, exists for compatibility.
         groups : array-like of shape (n_samples,)
             Always ignored, exists for compatibility.
-        """
 
-        """
         Yields
         ------
         idx_train : ndarray
