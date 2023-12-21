@@ -71,7 +71,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """
         Fitting function.
-        
+
         Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
@@ -102,7 +102,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def predict(self, X):
         """
         Predict function.
-        
+
         Parameters
         ----------
         X : ndarray, shape (n_test_samples, n_features)
@@ -133,7 +133,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def score(self, X, y):
         """
         Calculate the score of the prediction.
-        
+
         Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
@@ -160,7 +160,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 class MonthlySplit(BaseCrossValidator):
     """
     CrossValidator based on monthly split.
-    
+
     Split data based on the given `time_col` (or default to index). Each split
     corresponds to one month of data for the training and the next month of
     data for the test.
@@ -180,7 +180,7 @@ class MonthlySplit(BaseCrossValidator):
     def get_n_splits(self, X, y=None, groups=None):
         """
         Return the number of splitting iterations in the cross-validator.
-        
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
@@ -197,23 +197,19 @@ class MonthlySplit(BaseCrossValidator):
             The number of splits.
         """
         # Check whether time_col points to the index of the DataFrame
-        if self.time_col == 'index':
-            dates = X.index
-        else:
-            # check time_col if exist in column
-            if self.time_col not in X.columns:
-                raise KeyError(f"{self.time_col} is not in the columns of X")
-            dates = X[self.time_col]
-        if not pd.api.types.is_datetime64_any_dtype(dates):
-            raise ValueError("The time column should be datetime type")
-
-        months = np.unique(dates.to_period('M'))
-        return max(0, len(months) - 1)
+        X = X.reset_index()
+        time_col = X[self.time_col]
+        if not np.issubdtype(time_col.dtype, np.datetime64):
+            raise ValueError(
+                 'DataFrame should have at least one datetime column'
+                )
+        n_splits = len(pd.to_datetime(time_col).dt.to_period('M').unique()) - 1
+        return n_splits
 
     def split(self, X, y, groups=None):
         """
         Generate indices to split data into training and test set.
-        
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
@@ -233,25 +229,17 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        # obtain time data
-        if self.time_col == 'index':
-            dates = X.index
-        else:
-            dates = X[self.time_col]
-
         # Convert to month
-        months = dates.to_period('M')
-        unique_months = np.unique(months)
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index().resample(
+             'M', on=self.time_col
+             ).apply(
+                 lambda x: x.index
+             )
 
         for i in range(n_splits):
-            # Next month as a train set
-            train_mask = months == unique_months[i]
-            idx_train = np.where(train_mask)[0]
-
-            # Next month as a test set
-            test_mask = months == unique_months[i + 1]
-            idx_test = np.where(test_mask)[0]
+            idx_train = X.iloc[i].values
+            idx_test = X.iloc[i + 1].values
             yield (
                 idx_train, idx_test
             )
