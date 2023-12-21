@@ -130,9 +130,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-
         check_classification_targets(y)
-        
+
         y_pred = self.predict(X)
 
         return np.mean(y_pred == y)
@@ -181,9 +180,9 @@ class MonthlySplit(BaseCrossValidator):
         first_date, last_date = dates.min(), dates.max()
         M_first = 12*first_date.year + first_date.month
         M_last = 12*last_date.year + last_date.month
-        
+
         return M_last - M_first
-    
+
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
 
