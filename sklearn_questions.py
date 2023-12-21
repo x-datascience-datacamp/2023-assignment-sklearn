@@ -82,9 +82,24 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+
+        check_classification_targets(y)
+
+        # Check if the elements in y are convertible to integers
+        self._y = y
+        self.classes_ = np.unique(y)
+
+        n_samples = X.shape[0]
+        if n_samples == 0:
+            raise ValueError("n_samples must be greater than 0")
+
+        self._fit_X = X
+        self.n_samples_fit_, self.n_features_in_ = X.shape
+
         return self
 
-    def predict(self, X):
+    def predict(self, X: np.ndarray):
         """Predict function.
 
         Parameters
@@ -97,10 +112,24 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+        n_samples = X.shape[0]
+        y_pred = np.zeros_like(self._y, shape=n_samples)
+
+        distances = pairwise_distances(X, self._fit_X)
+        distance_sorted_indices = np.argsort(distances, axis=1)
+        k_closest_indices = np.array([
+            distance_sorted_indices[i, :self.n_neighbors]
+            for i in range(n_samples)
+        ])
+        k_closest_y = self._y[k_closest_indices]
+        for i in range(n_samples):
+            uniques, counts = np.unique(k_closest_y[i], return_counts=True)
+            y_pred[i] = uniques[counts.argmax()]
         return y_pred
 
-    def score(self, X, y):
+    def score(self, X, y, sample_weight=None):
         """Calculate the score of the prediction.
 
         Parameters
@@ -115,7 +144,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # y = check_array(y)
+        check_classification_targets(y)
+        y_pred = self.predict(X)
+
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +188,23 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if X is None:
+            raise ValueError("The 'X' parameter should not be None.")
+        if not isinstance(X, (pd.DataFrame, pd.Series)):
+            raise ValueError("The 'X' should be a DataFrame or a Series.")
+
+        X.sort_index(inplace=True)
+        X_copy = X.copy()
+        if self.time_col != "index":
+            X_copy[self.time_col] = pd.to_datetime(X_copy[self.time_col])
+            if not pd.api.types.is_datetime64_dtype(X[self.time_col]):
+                raise ValueError("The `time_col` should have datetime format.")
+            X_copy = X_copy.set_index(self.time_col)
+
+        self._time_index: pd.DatetimeIndex = X_copy.index.sort_values()
+        self._month_periods = self._time_index.to_period('M').unique()
+        n_splits = self._month_periods.shape[0] - 1
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +226,16 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
+        # n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X.sort_index(inplace=True)
+        y.sort_index(inplace=True)
+
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            month_train, month_test = self._month_periods[i:i+2]
+            idx_train = np.argwhere(
+                self._time_index.to_period('M') == month_train).ravel()
+            idx_test = np.argwhere(
+                self._time_index.to_period('M') == month_test).ravel()
+
+            yield idx_train, idx_test
