@@ -79,7 +79,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
-
         # Check that X and y have correct shape
         X, y = check_X_y(X, y)
         X = check_array(X)
@@ -108,7 +107,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         neighbors_idxs = np.argsort(distances)[:self.n_neighbors]
         neighbors_labels = [self._y_train[i] for i in neighbors_idxs]
         # ou ca : k_labels = self.y_train[k_idxs]
-
         # Ensuite on regarde la class qui apparait le plus
         most_common = Counter(neighbors_labels).most_common(1)
         prediction = most_common[0][0]
@@ -130,7 +128,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         return np.array(y_pred)
 
     def score(self, X, y):
-
         X, y = check_X_y(X, y)
         # Predict using the implemented predict method
         y_predd = self.predict(X)
@@ -215,45 +212,3 @@ class MonthlySplit(BaseCrossValidator):
                 idx_train, idx_test
             )
 
-
-# print(next(my_generator))  # Affiche 3
-
-X, y = load_iris(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
-                                                    random_state=4)
-
-k = 7
-knn_own = KNearestNeighbors(n_neighbors=k)
-knn_own.fit(X_train, y_train)
-y_pred = knn_own.predict(X_test)
-print("Accuracy Scoreis of fake:", knn_own.score(X_test, y_test))
-cm = confusion_matrix(y_test, y_pred)
-print(cm)
-# plot_confusion_matrix(cm, classes=['Class 1', 'Class 2', 'Class 3'])
-knn2 = KNeighborsClassifier(n_neighbors=k)
-y_pred_sk = knn2.fit(X_train, y_train).predict(X_test)
-print("Accuracy Scoreis of real:", accuracy_score(y_test, y_pred_sk))
-print(confusion_matrix(y_test, y_pred_sk))
-
-end_date = '2021-01-31'
-expected_splits = 12
-date = pd.date_range(start='2020-01-01', end=end_date, freq='D')
-n_samples = len(date)
-X = pd.DataFrame(range(n_samples), index=date, columns=['val'])
-y = pd.DataFrame(
-    np.array([i % 2 for i in range(n_samples)]),
-    index=date
-)
-shuffle_data = True
-if shuffle_data:
-    X, y = shuffle(X, y, random_state=0)
-# print(X)
-X_1d = X['val']
-# print(X_1d)
-cv = MonthlySplit()
-cv_repr = "MonthlySplit(time_col='index')"
-# Test if the repr works without any errors
-print(list(cv.split(X, y)))
-assert cv_repr == repr(cv)
-# Test if get_n_splits works correctly
-assert cv.get_n_splits(X, y) == expected_splits
