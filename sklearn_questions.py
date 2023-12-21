@@ -102,7 +102,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-
         check_is_fitted(self)
         X = check_array(X)
         if X.shape[1] != self.n_features_in_:
@@ -185,7 +184,6 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-
         X_ = X.copy()
 
         if self.time_col == "index":
