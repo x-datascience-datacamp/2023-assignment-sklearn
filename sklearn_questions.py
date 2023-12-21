@@ -48,17 +48,14 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
-
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
-
 from sklearn.model_selection import BaseCrossValidator
-
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+import scipy.stats
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +79,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+
+        self.X_ = X
+        self.y_ = y
+        self.n_features_in_ = X.shape[1]
+        self.classes_ = np.unique(y)
+
         return self
 
     def predict(self, X):
@@ -97,7 +102,21 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                "Different input dimension %d than during fitting %d"
+            )
+
+        distances = pairwise_distances(X, self.X_)
+
+        knn_id = np.argsort(distances, axis=1)[:, :self.n_neighbors]
+        knn_label = self.y_[knn_id]
+
+        y_pred = scipy.stats.mode(
+            knn_label, axis=1, keepdims=True)[0].ravel()
+
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +134,17 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_classification_targets(y)
+        check_is_fitted(self)
+        X, y = check_X_y(X, y)
+        y_pred = self.predict(X)
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                "Different input dimension %d than during fitting %d"
+            )
+
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +184,17 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X_ = X.copy()
+
+        if self.time_col == "index":
+            X_ = X.reset_index()
+
+        X_ = X_[self.time_col].sort_values()
+
+        if not X_.dtype == np.dtype('<M8[ns]'):
+            raise ValueError("datetime")
+
+        return (X_.iloc[-1].to_period("M") - X_.iloc[0].to_period("M")).n
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +216,33 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+
+        X = X.copy()
+        if self.time_col == "index":
+            X = X.reset_index()
+
+        X_ = X[self.time_col].reset_index(drop=True)
+        X_1 = X[self.time_col].sort_values()
+
+        # we take the first month as the first train
+        # and the second as the first tests
         for i in range(n_splits):
             idx_train = range(n_samples)
             idx_test = range(n_samples)
+            month_train = X_1.dt.month.unique()[i % 12]
+            year_train = X_1.dt.year.unique()[i // 12]
+            idx_train = X_[(X_.dt.year == year_train) &
+                           (X_.dt.month == month_train)].index
+            idx_train = np.array(idx_train)
+
+            month_test = X_1.dt.month.unique()[(i + 1) % 12]
+            year_test = X_1.dt.year.unique()[(i + 1) // 12]
+            idx_test = X_[(X_.dt.year == year_test) &
+                          (X_.dt.month == month_test)].index
+            idx_test = np.array(idx_test)
+
             yield (
                 idx_train, idx_test
             )
