@@ -62,8 +62,9 @@ from sklearn.utils.multiclass import unique_labels
 
 
 def aux(x):
-    """Gives the majority vote."""
-    return np.argmax(np.bincount(x))
+    """Give the majority vote."""
+    a, b = np.unique(x, return_counts=True)
+    return a[np.argmax(b)]
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -88,7 +89,8 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             The current instance of the classifier
         """
         check_classification_targets(y)
-        self.X_, self.y_ = check_X_y(X, y)
+        X, y = check_X_y(X, y)
+        self.X_, self.y_ = X, y
         self.classes_ = unique_labels(y)  # np.unique(y)
         self.n_features_in_ = self.X_.shape[1]
         return self
@@ -109,9 +111,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         check_is_fitted(self)
         X = check_array(X)
         distances = pairwise_distances(X, self.X_)
-        print(self.y_)
         sorted_classes = self.y_[np.argsort(distances)[:, :self.n_neighbors]]
-        # y_pred = np.zeros(X.shape[0])
         y_pred = np.apply_along_axis(aux, 1, sorted_classes)
         return y_pred
 
@@ -176,10 +176,8 @@ class MonthlySplit(BaseCrossValidator):
         """
         try:
             if self.time_col != 'index':
-                X = X.set_index(self.time_col) 
-            date1 = X.index.min()
-            date2 = X.index.max()
-            return (date2.year - date1.year)*12 + (date2.month - date1.month)
+                X = X.set_index(self.time_col)
+            return len(np.unique(X.index.to_period('M'))) - 1
         except ValueError:
             raise ValueError("time_col is not a datetime column")
 
@@ -204,19 +202,22 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
         try:
+            n_splits = self.get_n_splits(X, y, groups)
             if self.time_col != 'index':
                 X = X.set_index(self.time_col)
             n_samples = X.shape[0]
-            n_splits = self.get_n_splits(X, y, groups)
             months = np.unique(X.index.to_period("M"))
             idx = np.arange(n_samples)
+            X_months = X.index.to_period("M").to_timestamp()
             for i in range(n_splits):
                 month1 = months[i].to_timestamp()
                 month2 = months[i+1].to_timestamp()
-                idx_train = idx[X.index.to_timestamp() == month1]
-                idx_test = idx[X.index.to_timestamp() == month2]
+                idx_train = idx[X_months == month1]
+                idx_test = idx[X_months == month2]
                 yield (
                     idx_train, idx_test
                 )
         except ValueError:
+            raise ValueError("time_col is not a datetime column")
+        except AttributeError:
             raise ValueError("time_col is not a datetime column")
