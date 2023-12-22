@@ -183,6 +183,7 @@ class MonthlySplit(BaseCrossValidator):
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
@@ -200,7 +201,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         if self.time_col != 'index':
             if not isinstance(X[self.time_col][0], type(pd.Timestamp('now'))):
                 raise ValueError('datetime')
