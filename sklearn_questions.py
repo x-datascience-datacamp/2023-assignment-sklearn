@@ -50,72 +50,76 @@ to compute distances between 2 sets of samples.
 import numpy as np
 import pandas as pd
 
+import sklearn
+
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
-
+from sklearn.datasets import make_classification
 from sklearn.model_selection import BaseCrossValidator
 
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import unique_labels
 
+from collections import Counter
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
-    def __init__(self, n_neighbors=1):  # noqa: D107
+    def __init__(self, n_neighbors=1):
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
-        """Fitting function.
-
-         Parameters
-        ----------
-        X : ndarray, shape (n_samples, n_features)
-            Data to train the model.
-        y : ndarray, shape (n_samples,)
-            Labels associated with the training data.
-
-        Returns
-        ----------
-        self : instance of KNearestNeighbors
-            The current instance of the classifier
-        """
+        
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.X_train_ = X.copy()
+        self.y_train_ = y.copy()
+        self.classes_ = unique_labels(y)
+        self.n_features_in_ = X.shape[1]
+        
+        L = []
+        for k in range(0,len(y)):
+            if y[k] in L :
+                pass
+            else :
+                L.append(y[k])
+                
+            
+        self.n_classes_ = len(L)
+        
         return self
 
     def predict(self, X):
-        """Predict function.
+        check_is_fitted(self)
+        X = check_array(X)
 
-        Parameters
-        ----------
-        X : ndarray, shape (n_test_samples, n_features)
-            Data to predict on.
+        y_pred = []
+        for sample in X:
+            
+            distance = np.sqrt(np.sum((self.X_train_ - sample) ** 2, axis=1))
+            indice = np.argsort(distance)[:self.n_neighbors]
+            labels = self.y_train_[indice]
 
-        Returns
-        ----------
-        y : ndarray, shape (n_test_samples,)
-            Predicted class labels for each test data sample.
-        """
-        y_pred = np.zeros(X.shape[0])
+            label_counts = Counter(labels)
+            most_common_label = label_counts.most_common(1)[0][0]
+            y_pred.append(most_common_label)
+        y_pred = np.array(y_pred)
+        
         return y_pred
 
     def score(self, X, y):
-        """Calculate the score of the prediction.
-
-        Parameters
-        ----------
-        X : ndarray, shape (n_samples, n_features)
-            Data to score on.
-        y : ndarray, shape (n_samples,)
-            target values.
-
-        Returns
-        ----------
-        score : float
-            Accuracy of the model computed for the (X, y) pairs.
-        """
-        return 0.
+        predicted_labels = self.predict(X)
+        score = 0
+        for i in range(0,len(predicted_labels)):
+            if predicted_labels[i] == y[i]:
+                score += 1
+        
+        score = score/len(predicted_labels)
+        
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +159,27 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+
+            
+        n_splits_ = 0
+
+        X = X.reset_index()
+        
+        if X[self.time_col].dtype != 'datetime64[ns]':
+            raise ValueError("The column '{}' is not a datetime.".format(self.time_col))
+            
+        mois = X[self.time_col].dt.month
+        an = X[self.time_col].dt.year
+        anmois = []
+        for i in range(0,len(an)):
+            anmois.append(int(str(mois[i]) + str(an[i])))
+            
+        n_splits_0 = unique_labels(anmois)
+
+        n_splits_ = len(n_splits_0)-1
+
+        return n_splits_
+    
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +201,15 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index()
+        n_splits = self.get_n_splits(X)
+        ym_id = X[self.time_col].dt.year * 12 + X[self.time_col].dt.month
+        
+        list_ym = np.sort(ym_id.unique())
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            idx_train = np.where(ym_id == list_ym[i])[0]
+            idx_test = np.where(ym_id == list_ym[i + 1])[0]
+
+            yield (idx_train, idx_test)
+
+
