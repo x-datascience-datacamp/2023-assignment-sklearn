@@ -174,15 +174,20 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        X = X.reset_index()
-        if X[self.time_col].dtype != 'datetime64[ns]':
+        if self.time_col == 'index':
+            time_col_index = X.index
+        else:
+            time_col_index = X[self.time_col]
+
+        if time_col_index.dtype != 'datetime64[ns]':
             raise ValueError("The column is not a datetime")
-        X = X.set_index(self.time_col)
-        n_splits = X[self.time_col].dt.to_period("M").nunique()-1
+
+        n_splits = time_col_index.to_period("M").nunique() - 1
         return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
+        
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
@@ -206,3 +211,6 @@ class MonthlySplit(BaseCrossValidator):
             idx_train = range(n_samples)
             idx_test = range(n_samples)
             yield (idx_train, idx_test)
+
+
+
