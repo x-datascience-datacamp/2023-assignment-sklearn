@@ -86,7 +86,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         check_classification_targets(y)
         self.X_ = X
         self.classes_, self.y_ = np.unique(y, return_inverse=True)
-        self.n_features_in_ = X.shape[1] 
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -104,12 +104,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self, ['X_', 'y_', 'n_features_in_'])
         X = check_array(X)
-        dist = np.sqrt(((X[:, np.newaxis] - self.X_) ** 2).sum(axis=2))
-        nearest = np.argpartition(dist, self.n_neighbors, axis=1)[:, :self.n_neighbors]
+        dist = pairwise_distances(X, self.X_, metric='euclidean')
+        nearest = np.argpartition(dist, self.n_neighbors,
+                                  axis=1)[:, :self.n_neighbors]
         votes = self.y_[nearest]
-        y_pred = np.array([np.argmax(np.bincount(votes[i])) for i in range(votes.shape[0])])
+        y_pred = np.array([np.argmax(np.bincount(votes[i]))
+                           for i in range(votes.shape[0])])
         return self.classes_[y_pred]
-        
+
     def score(self, X, y):
         """Calculate the score of the prediction.
 
@@ -172,10 +174,10 @@ class MonthlySplit(BaseCrossValidator):
         if self.time_col == 'index':
             X = X.reset_index()
         if X[self.time_col].dtype != 'datetime64[ns]':
-            raise ValueError("The column '{}' is not a datetime."\
+            raise ValueError("The column '{}' is not a datetime."
                              .format(self.time_col))
         X = X.sort_values(by=self.time_col)
-        cond=X[self.time_col].dt.month.diff() != 0
+        cond = X[self.time_col].dt.month.diff() != 0
         splits = X[cond]
         n_splits = len(splits)-1
         return n_splits
