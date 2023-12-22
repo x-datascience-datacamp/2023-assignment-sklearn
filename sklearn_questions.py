@@ -48,10 +48,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
-
-from collections import Counter
-from pandas.api.types import is_datetime64_any_dtype
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -223,4 +219,3 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_train, idx_test
             )
-
