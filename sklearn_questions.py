@@ -49,12 +49,12 @@ to compute distances between 2 sets of samples.
 """
 import numpy as np
 import pandas as pd
-
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
-
+from scipy import stats
 from sklearn.model_selection import BaseCrossValidator
 
+from sklearn import preprocessing
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
@@ -82,6 +82,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
+        self.X_train_ = X
+        self.y_train_ = y
         return self
 
     def predict(self, X):
@@ -97,8 +103,30 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        return y_pred
+        check_is_fitted(self)
+        X = check_array(X)
+        distances = pairwise_distances(X, self.X_train_)
+        indices = distances.argsort(axis=1)[:, :self.n_neighbors]
+        neighbors_labels = self.y_train_[indices]
+        label_encoder = preprocessing.LabelEncoder()
+        is_vectorized = False
+        if not np.issubdtype(neighbors_labels.dtype, np.number):
+            is_vectorized = True
+            unique_labels = np.unique(neighbors_labels)
+            label_encoder.fit_transform(unique_labels)
+            integer_mapping = {l: i for i, l in enumerate(
+                label_encoder.classes_)}
+            neighbors_labels = np.vectorize(integer_mapping.get)(
+                neighbors_labels)
+        predictions = np.apply_along_axis(lambda x: stats.mode(
+            x, keepdims=False)[0],
+                                          axis=1, arr=neighbors_labels)
+        if is_vectorized:
+            reverse_mapping = {i: label for label, i in integer_mapping.items(
+
+            )}
+            predictions = np.vectorize(reverse_mapping.get)(predictions)
+        return predictions
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -115,7 +143,11 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        check_is_fitted(self)
+        y_pred = self.predict(X)
+        correct_predictions = np.sum(y_pred == y)
+        total_samples = len(y)
+        return correct_predictions / total_samples
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +187,15 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == 'index':
+            dates = X.index.to_series()
+        else:
+            dates = X[self.time_col]
+        if not pd.api.types.is_datetime64_any_dtype(dates):
+            raise ValueError(
+                "The specified column/index must be datetime type")
+        self.dates_ = dates
+        return len(dates.dt.to_period('M').unique()) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +217,24 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
+        # print("X.shape[0] ", X.shape[0])
+        # n_splits = self.get_n_splits(X, y, groups)
+        # print("n_splits ", n_splits)
 
-        n_samples = X.shape[0]
+        # if self.time_col == 'index':
+        #     dates = X.index.to_series()
+        # else:
+        #     dates = X[self.time_col]
         n_splits = self.get_n_splits(X, y, groups)
+        sorted_dates = self.dates_.sort_values()
+        months = sorted_dates.dt.to_period('M').unique()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            start_train = months[i].start_time
+            end_train = months[i].end_time
+            start_test = months[i].end_time + pd.Timedelta(days=1)
+            end_test = months[i + 1].end_time
+            train_mask = (self.dates_ >= start_train) & (
+                self.dates_ <= end_train)
+            test_mask = (self.dates_ >= start_test) & (
+                self.dates_ <= end_test)
+            yield (np.where(train_mask)[0], np.where(test_mask)[0])
