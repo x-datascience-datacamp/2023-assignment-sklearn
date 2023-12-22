@@ -54,6 +54,7 @@ from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
 
 from sklearn.model_selection import BaseCrossValidator
+
 from sklearn.utils.multiclass import unique_labels
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
@@ -84,12 +85,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         X, y = check_X_y(X, y)
         check_classification_targets(y)
-        self.classes_ = unique_labels(y)
         self.n_features_in_ = X.shape[1]
+        self.classes_ = unique_labels(y)
         if len(self.classes_) < 2:
             raise ValueError("Only one class present in the data.")
-        self.X_train_ = X
-        self.y_train_ = y
+        self.X_ = X
+        self.y_ = y
 
         return self
 
@@ -110,9 +111,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X = check_array(X)
         y_pred = []
         for i, x in enumerate(X):
-            distances = pairwise_distances(x.reshape(1, -1), self.X_train_)
+            distances = pairwise_distances(x.reshape(1, -1), self.X_)
             idx = np.argsort(distances, axis=1)[0][:self.n_neighbors]
-            values, counts = np.unique(self.y_train_[idx], return_counts=True)
+            values, counts = np.unique(self.y_[idx], return_counts=True)
             y_pred.append(values[np.argmax(counts)])
         y_pred = np.array(y_pred)
         return y_pred
@@ -175,7 +176,6 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        # X.set_index[self.time_col]
         X_copy = X.copy()
         if self.time_col == 'index':
             X_copy = X.reset_index()
@@ -207,7 +207,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         X_copy = X.reset_index()
         n_splits = self.get_n_splits(X_copy, y, groups)
         X_grouped = X_copy.sort_values(by=self.time_col).\
