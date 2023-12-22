@@ -182,12 +182,11 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-
         X = X.reset_index()
         self.time_ = X.loc[:, self.time_col_]
 
         if self.time_.dtype != 'datetime64[ns]':
-            raise ValueError('not a datetime')
+            raise ValueError('Chosen column is not a datetime')
         self.months_ = (np.sort((self.time_.dt.strftime('%Y-%m')).unique()))
         print(self.months_)
 
