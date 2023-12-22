@@ -235,5 +235,3 @@ class MonthlySplit(BaseCrossValidator):
             yield (
                 idx_test, idx_train
                   )
-
-    
