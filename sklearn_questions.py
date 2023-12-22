@@ -112,7 +112,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         # Calculate distances between X and training data
         distances = pairwise_distances(X, self.X_, metric="euclidean")
         # Find the indices of the closest points
-        nearest_indices = np.argmin(distances, axis=1)[:, :self.n_neighbors]
+        nearest_indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
         # Get the labels of the nearest points
         nearest_labels = self.y_[nearest_indices]
         # Determine the most common label among the nearest neighbors
