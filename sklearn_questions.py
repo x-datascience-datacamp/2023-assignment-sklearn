@@ -112,7 +112,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         i = 0
         y_pred = []
         for item in X:
-            # Calculate the distance between item and the X_train
+            # Calculate the distance between item and the self.X
             point_dist = pairwise_distances(
                 np.concatenate([item.reshape(1, len(item)), self.X_], axis=0)
                 )[0, 1:]
@@ -149,7 +149,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         X, y = check_X_y(X, y)
 
         y_pred = self.predict(X)
-        score = ((y_pred == y).sum()) / (len(y_pred))
+        score = np.mean(y_pred == y)
         return score
 
 
@@ -218,7 +218,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         n_splits = self.get_n_splits(X, y, groups)
         X = X.reset_index()
         X.index.names = ['Index_nb']
