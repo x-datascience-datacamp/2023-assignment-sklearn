@@ -18,7 +18,7 @@ repo `pytest test_sklearn_questions.py`. Note that to be fully valid, a
 scikit-learn estimator needs to check that the input given to `fit` and
 `predict` are correct using the `check_*` functions imported in the file.
 You can find more information on how they should be used in the following doc:
-https://scikit-learn.org/stable/developers/develop.html#rolling-your-own-estimator.
+https://scikit-learn.org/stable/developers/develop.hxtml#rolling-your-own-estimator.
 Make sure to use them to pass `test_nearest_neighbor_check_estimator`.
 
 
@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-import pandas as pd
+from pandas.api.types import is_datetime64_dtype as is_datetime64
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -58,7 +58,9 @@ from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.multiclass import unique_labels
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.metrics import accuracy_score
 
 
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
@@ -82,6 +84,19 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = check_X_y(X, y)
+        check_classification_targets(y)
+        X = check_array(X)
+        # Store the classes seen during fit
+        self.classes_ = unique_labels(y)
+
+        if not isinstance(self.n_neighbors, int):
+            raise ValueError('n_neighbors must be an integer')
+
+        self.n_features_in_ = X.shape[1]
+
+        self.X_ = X
+        self.y_ = y
         return self
 
     def predict(self, X):
@@ -97,7 +112,18 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        X = check_array(X)
+
+        distance = pairwise_distances(X, self.X_, metric='euclidean')
+        y_pred = np.zeros(X.shape[0]).astype(self.y_.dtype)
+
+        for col in range(distance.shape[0]):
+            ls_min = (np.argsort(distance[col, :]))[:self.n_neighbors]
+            val, counts = np.unique(self.y_[ls_min], return_counts=True)
+            n_max = np.argmax(counts)
+            y_pred[col] = val[n_max]
+
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +141,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        y_test = self.predict(X)
+        score = accuracy_score(y, y_test)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +183,16 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == 'index':
+            X = X.reset_index()
+        self.X_time = X[self.time_col]
+
+        if not is_datetime64(self.X_time):
+            raise ValueError(
+                "The column {} is not a datetime.".format(self.time_col)
+                )
+
+        return len(self.X_time.dt.to_period('M').unique())-1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -178,11 +215,17 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+
+        X = X.reset_index()
+
+        index_sorted = X.resample('M',
+                                  on=self.time_col
+                                  ).apply(lambda x: x.index)
+        index_sorted.index = index_sorted.index.to_period('M')
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = np.array(index_sorted[index_sorted.index[i]])
+            idx_test = np.array(index_sorted[index_sorted.index[i+1]])
             yield (
                 idx_train, idx_test
             )
