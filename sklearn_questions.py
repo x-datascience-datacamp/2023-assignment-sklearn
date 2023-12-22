@@ -67,7 +67,6 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def __init__(self, n_neighbors=1):  # noqa: D107
         if n_neighbors <= 0:
             raise ValueError("n_neighbors is negative")
-
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -113,7 +112,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
             dist = pairwise_distances(X[k].reshape(1, -1), self.X_train_)
             dist = np.argsort(dist)
             neighbors = self.y_train_[dist[0][: self.n_neighbors]]
-            y_pred.append(max(set(neighbors.tolist()), key=neighbors.tolist().count))
+            y_pred.append(
+                max(set(neighbors.tolist()), key=neighbors.tolist().count)
+                )
         return np.array(y_pred)
 
     def score(self, X, y):
