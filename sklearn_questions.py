@@ -179,12 +179,12 @@ class MonthlySplit(BaseCrossValidator):
         """
         X = X.reset_index()
         if X[self.time_col].dtype != 'datetime64[ns]':
-            raise ValueError("The column is not a datetime")       
+            raise ValueError("The column is not a datetime")
         return pd.to_datetime(X[self.time_col]).dt.to_period("M").nunique() - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
-        
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
