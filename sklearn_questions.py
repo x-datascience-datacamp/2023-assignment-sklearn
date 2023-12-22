@@ -48,7 +48,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 to compute distances between 2 sets of samples.
 """
 import numpy as np
-# import pandas as pd
+import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
@@ -179,10 +179,10 @@ class MonthlySplit(BaseCrossValidator):
         else:
             time_col_index = X[self.time_col]
 
-        if time_col_index.dtype != 'datetime64[ns]':
+        if time_col_index.dtype != 'datetime64[ns]':#pb ici 
             raise ValueError("The column is not a datetime")
 
-        n_splits = time_col_index.to_period("M").nunique() - 1
+        n_splits = X[time_col_index].to_period("M").nunique() - 1
         return n_splits
 
     def split(self, X, y, groups=None):
@@ -205,12 +205,16 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        n_samples = X.shape[0]
+        unique_months = np.sort(X[self.time_col].dt.to_period("M").unique())
+
         n_splits = self.get_n_splits(X, y, groups)
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (idx_train, idx_test)
-
+            train_indices = np.where(
+                X[self.time_col].dt.to_period("M") == unique_months[i]
+            )[0]
+            test_indices = np.where(
+                X[self.time_col].dt.to_period("M") == unique_months[i + 1]
+            )[0]
+            yield train_indices, test_indices
 
 
