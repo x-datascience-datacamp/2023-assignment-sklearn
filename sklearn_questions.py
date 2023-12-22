@@ -70,7 +70,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """Fitting function.
 
-         Parameters
+        Parameters
         ----------
         X : ndarray, shape (n_samples, n_features)
             Data to train the model.
@@ -82,6 +82,15 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # Check that X and y have correct shapes
+        X, y = check_X_y(X, y)
+        X = check_array(X)
+        check_classification_targets(y)
+
+        self.X_ = X
+        self.y_ = y
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -97,7 +106,26 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self)
+        # Input validation
+        X = check_array(X)
+        i = 0
+        y_pred = []
+        for item in X:
+            # Calculate the distance between item and the self.X
+            point_dist = pairwise_distances(
+                np.concatenate([item.reshape(1, len(item)), self.X_], axis=0)
+                )[0, 1:]
+            # we need distance between the newpoint and others
+            dist = np.argsort(point_dist)[:self.n_neighbors]
+            # Labels of the n_neighbors datapoints
+            labels = self.y_[dist]
+            values, counts = np.unique(labels, return_counts=True)
+            # keep value with highest frequency
+            y_pred.append(values[counts.argmax()])
+            i += 1
+        y_pred = np.array(y_pred)
+        check_classification_targets(y_pred)
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +143,14 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # Input validation
+        check_classification_targets(y)
+        X = check_array(X)
+        X, y = check_X_y(X, y)
+
+        y_pred = self.predict(X)
+        score = np.mean(y_pred == y)
+        return score
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +190,13 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        X = X.reset_index()
+        if X[self.time_col].dtype != 'datetime64[ns]':
+            raise ValueError('datetime')
+        column_date = X[self.time_col]
+        max = column_date.max()
+        min = column_date.min()
+        return (max.year-min.year)*12+max.month-min.month
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -172,17 +213,28 @@ class MonthlySplit(BaseCrossValidator):
 
         Yields
         ------
-        idx_train : ndarray
-            The training set indices for that split.
+        idx_ : ndarray
+            The training set indices for that split
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.reset_index()
+        X.index.names = ['Index_nb']
+        X = X.reset_index()
+        X['Month'] = pd.DatetimeIndex(X[self.time_col]).month
+        X['Year'] = pd.DatetimeIndex(X[self.time_col]).year
+        X2 = X.copy()
+        X2 = X2[['Month',
+                 'Year']].drop_duplicates().sort_values(['Year',
+                                                         'Month'])
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
-            )
+            idX_ = X.merge(X2.iloc[[i]],
+                           how='inner', left_on=['Month', 'Year'],
+                           right_on=['Month',
+                                     'Year'])['Index_nb'].to_numpy()
+            idx_test = X.merge(X2.iloc[[i+1]], how='inner',
+                               left_on=['Month', 'Year'],
+                               right_on=['Month',
+                                         'Year'])['Index_nb'].to_numpy()
+            yield (idX_, idx_test)
