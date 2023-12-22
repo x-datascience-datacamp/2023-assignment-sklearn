@@ -51,9 +51,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.base import ClassifierMixin
-
 from sklearn.model_selection import BaseCrossValidator
-
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
@@ -182,7 +180,7 @@ class MonthlySplit(BaseCrossValidator):
                 x_df = x_df.rename({self.time_col: 'date'})
         month = pd.to_datetime(x_df['date']).dt.strftime('%b-%Y')
         return len(set(month)) - 1
-     
+
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
 
