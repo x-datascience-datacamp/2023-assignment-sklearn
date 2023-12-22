@@ -11,7 +11,7 @@ Detailed instructions for question 1:
 The nearest neighbor classifier predicts for a point X_i the target y_k of
 the training sample X_k which is the closest to X_i. We measure proximity with
 the Euclidean distance. The model will be evaluated with the accuracy (average
-number of samples corectly classified). You need to implement the `fit`,
+number of samples correctly classified). You need to implement the `fit`,
 `predict` and `score` methods for this class. The code you write should pass
 the test we implemented. You can run the tests by calling at the root of the
 repo `pytest test_sklearn_questions.py`. Note that to be fully valid, a
@@ -82,6 +82,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        # checks
+        X, y = check_X_y(X, y)
+        X = check_array(X)
+        check_classification_targets(y)
+        # fitting
+        self.X_ = X
+        self.y_ = y
+        self.label_type_ = y.dtype
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -97,7 +107,24 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        # checks
+        X = check_array(X)
+        check_is_fitted(self)
+        # we initialize the predictions
+        y_pred = np.zeros(X.shape[0], dtype=self.label_type_)
+        # we computation the distances (Euclidian)
+        distances = pairwise_distances(self.X_, X, metric='euclidean')
+        # we get the index of the k nearest neighbors for each test sample
+        k_nn_idx = np.argpartition(distances,
+                                   kth=self.n_neighbors,
+                                   axis=0)[:self.n_neighbors, :]
+        # we get the labels associated to these indexes
+        k_nn_labels = self.y_[k_nn_idx]
+        # we compute the number of each labels in the k nearest neighbors
+        for i in range(X.shape[0]):
+            unique_labels = np.unique(k_nn_labels[:, i], return_counts=True)
+            # we compute the predictions as the most common label
+            y_pred[i] = unique_labels[0][np.argmax(unique_labels[1])]
         return y_pred
 
     def score(self, X, y):
@@ -115,7 +142,16 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        # checks
+        X, y = check_X_y(X, y)
+        X = check_array(X)
+        check_classification_targets(y)
+        check_is_fitted(self)
+        # the score here is the mean accuracy on the test data and labels
+        y_pred = self.predict(X)
+        check_classification_targets(y_pred)
+        mean_accuracy = np.mean(y == y_pred)
+        return mean_accuracy
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -155,7 +191,17 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        if self.time_col == 'index':
+            X = X.reset_index()
+        else:
+            X = X.copy()
+            if self.time_col not in X.columns:
+                raise ValueError(f"{self.time_col} not found in columns.")
+            if not pd.api.types.is_datetime64_any_dtype(X[self.time_col]):
+                raise ValueError(f'{self.time_col} is not of type datetime.')
+        time_series = X[self.time_col]
+        n_splits = len(time_series.dt.to_period('M').unique()) - 1
+        return n_splits
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +223,14 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
-        n_samples = X.shape[0]
+        X = X.reset_index()
         n_splits = self.get_n_splits(X, y, groups)
+        X = X.sort_values(self.time_col).groupby(
+            pd.Grouper(key=self.time_col, freq="M"))
+        idx = X.apply(lambda batch: batch.index).tolist()
         for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
+            idx_train = list(idx[i])
+            idx_test = list(idx[i+1])
             yield (
                 idx_train, idx_test
             )
