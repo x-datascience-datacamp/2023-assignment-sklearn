@@ -38,6 +38,7 @@ calling `flake8` at the root of the repo.
 Finally, you need to write docstrings for the methods you code and for the
 class. The docstring will be checked using `pydocstyle` that you can also
 call at the root of the repo.
+
 Hints
 -----
 - You can use the function:
@@ -65,7 +66,7 @@ from collections import Counter
 class KNearestNeighbors(BaseEstimator, ClassifierMixin):
     """KNearestNeighbors classifier."""
 
-    def _init_(self, n_neighbors=1):  # noqa: D107
+    def __init__(self, n_neighbors=1):  # noqa: D107
         self.n_neighbors = n_neighbors
 
     def fit(self, X, y):
@@ -145,7 +146,7 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
 class MonthlySplit(BaseCrossValidator):
     """CrossValidator based on monthly split.
 
-    Split data based on the given time_col (or default to index). Each split
+    Split data based on the given `time_col` (or default to index). Each split
     corresponds to one month of data for the training and the next month of
     data for the test.
 
@@ -155,10 +156,10 @@ class MonthlySplit(BaseCrossValidator):
         Column of the input DataFrame that will be used to split the data. This
         column should be of type datetime. If split is called with a DataFrame
         for which this column is not a datetime, it will raise a ValueError.
-        To use the index as column just set time_col to 'index'.
+        To use the index as column just set `time_col` to `'index'`.
     """
 
-    def _init_(self, time_col='index'):  # noqa: D107
+    def __init__(self, time_col='index'):  # noqa: D107
         self.time_col = time_col
 
     def get_n_splits(self, X, y=None, groups=None):
@@ -167,8 +168,8 @@ class MonthlySplit(BaseCrossValidator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data, where n_samples is the number of samples
-            and n_features is the number of features.
+            Training data, where `n_samples` is the number of samples
+            and `n_features` is the number of features.
         y : array-like of shape (n_samples,)
             Always ignored, exists for compatibility.
         groups : array-like of shape (n_samples,)
@@ -195,8 +196,8 @@ class MonthlySplit(BaseCrossValidator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data, where n_samples is the number of samples
-            and n_features is the number of features.
+            Training data, where `n_samples` is the number of samples
+            and `n_features` is the number of features.
         y : array-like of shape (n_samples,)
             Always ignored, exists for compatibility.
         groups : array-like of shape (n_samples,)
