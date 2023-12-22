@@ -159,6 +159,12 @@ class MonthlySplit(BaseCrossValidator):
         self.time_col_ = time_col
 
     def __repr__(self):
+        """Return a string representation of the MonthlySplit object.
+
+        Parameters
+        ----------
+        self.
+        """
         if self.time_col_ == 'index':
             return "MonthlySplit(time_col='index')"
         else:
