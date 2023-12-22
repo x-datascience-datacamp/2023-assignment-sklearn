@@ -87,10 +87,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         X, y = check_X_y(X, y)
         check_classification_targets(y)
-        self.n_features_in_ = X.shape[1]
         self.classes_ = np.unique(y)
-        self.X_ = X
         self.y_ = y
+        self.X_ = X
+        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -106,15 +106,18 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
-        check_is_fitted(self)
         X = check_array(X)
-        dist = pairwise_distances(X, self.X_)
-        k_neighbors_pos = np.argsort(dist, axis=1)[:, :self.n_neighbors]
-        preds = self.y_[k_neighbors_pos]
-        y_pred = [max(Counter(row),
-                      key=Counter(row).get) for row in preds]
-        return np.array(y_pred)
+        check_is_fitted(self)
+
+        distances = pairwise_distances(X, self.X_)
+        idx = np.argsort(distances, axis=1)[:, 0: self.n_neighbors]
+
+        y_pred = np.zeros(X.shape[0], dtype=self.y_.dtype)
+        for i, neighbors in enumerate(self.y_[idx]):
+            classes, counts = np.unique(neighbors, return_counts=True)
+            y_pred[i] = classes[np.argmax(counts)]
+
+        return y_pred
 
     def score(self, X, y):
         """Calculate the score of the prediction.
@@ -131,10 +134,12 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        check_is_fitted(self)
         X = check_array(X)
+        check_classification_targets(y)
+        check_is_fitted(self)
+
         y_pred = self.predict(X)
-        return np.mean(y == y_pred)
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
@@ -174,16 +179,13 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        X_copy = X.reset_index() if self.time_col == 'index' else X.copy()
-        if X_copy[self.time_col].dtype != 'datetime64[ns]':
-            raise ValueError(
-                f"The column '{self.time_col}' is not a datetime."
-                )
-        X_copy.sort_values(by=self.time_col, inplace=True)
-        month_changes = X_copy[self.time_col].dt.month.diff().ne(0)
-        n_splits = month_changes.sum() - 1
-        return n_splits
-    
+        X_copy = X.copy().reset_index()
+        if (X_copy.loc[:, self.time_col].dtype != "datetime64[ns]"):
+            raise ValueError(f"{self.time_col} must be of type datetime.")
+
+        X_copy = X_copy.sort_values(by=self.time_col)
+        self.months_ = X_copy.loc[:, self.time_col].dt.to_period("M").unique()
+        return len(self.months_) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -206,16 +208,19 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
-        X_copy = X.reset_index()
-        n_splits = self.get_n_splits(X_copy, y, groups)
-        X_grouped = X_copy.sort_values(
-            by=self.time_col
-            ).groupby(
-                pd.Grouper(key=self.time_col, freq="M")
-                )
-        idxs = [group.index for _, group in X_grouped]
+        if (X.reset_index().loc[:, self.time_col].dtype != "datetime64[ns]"):
+            raise ValueError(f"{self.time_col} must be of type datetime.")
+
+        X_copy = X.copy().reset_index().sort_values(by=self.time_col)
+
+        X_copy["months"] = X_copy[self.time_col].dt.to_period("M")
+        n_splits = self.get_n_splits(X, y, groups)
         for i in range(n_splits):
-            idx_train = idxs[i].tolist()
-            idx_test = idxs[i+1].tolist()
-            yield idx_train, idx_test
+            train_bool = X_copy["months"] == self.months_[i]
+            idx_train = X_copy[train_bool].index.values
+            test_bool = X_copy["months"] == self.months_[i+1]
+            idx_test = X_copy[test_bool].index.values
+            yield (
+                idx_train, idx_test
+            )
 
