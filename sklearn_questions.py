@@ -180,9 +180,9 @@ class MonthlySplit(BaseCrossValidator):
         if X[self.time_col].dtype != "datetime64[ns]":
             raise ValueError("datetime")
         column_date = X[self.time_col]
-        max = column_date.max()
-        min = column_date.min()
-        return (max.year - min.year) * 12 + max.month - min.month
+        max_date = column_date.max()
+        min_date = column_date.min()
+        return (max_date.year - min_date.year) * 12 + max_date.month - min_date.month
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
