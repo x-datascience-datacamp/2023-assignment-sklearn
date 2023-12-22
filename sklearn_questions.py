@@ -182,7 +182,8 @@ class MonthlySplit(BaseCrossValidator):
         column_date = X[self.time_col]
         max_date = column_date.max()
         min_date = column_date.min()
-        return (max_date.year - min_date.year) * 12 + max_date.month - min_date.month
+        duration = (max_date.year - min_date.year) * 12
+        return duration + max_date.month - min_date.month
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
