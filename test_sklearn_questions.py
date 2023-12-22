@@ -125,6 +125,3 @@ def test_time_split_on_column(end_date, shuffle_data):
     assert 'idx' not in X.columns
 
     assert n_splits == cv.get_n_splits(X, y)
-
-
-# AssertionError: assert Timestamp('2021-01-31 00:00:00') < Timestamp('2020-01-02 00:00:00')

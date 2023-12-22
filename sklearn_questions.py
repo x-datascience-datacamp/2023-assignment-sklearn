@@ -8,7 +8,7 @@ The goal of this assignment is to implement by yourself:
   DateTimeIndex.
 
 Detailed instructions for question 1:
-The nea  for a point X_i the target y_k of
+The nearest neighbor classifier predicts for a point X_i the target y_k of
 the training sample X_k which is the closest to X_i. We measure proximity with
 the Euclidean distance. The model will be evaluated with the accuracy (average
 number of samples corectly classified). You need to implement the `fit`,
