@@ -203,7 +203,6 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-
         if (X.reset_index().loc[:, self.time_col].dtype != "datetime64[ns]"):
             raise ValueError(f"{self.time_col} must be of type datetime.")
 
