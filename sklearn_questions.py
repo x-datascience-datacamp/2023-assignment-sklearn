@@ -59,6 +59,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.utils.validation import check_array
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics.pairwise import pairwise_distances
+
 from collections import Counter
 
 
@@ -85,11 +86,10 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         """
         X, y = check_X_y(X, y)
         check_classification_targets(y)
-
+        self.n_features_in_ = X.shape[1]
         self.sample_ = X
         self.features_ = y
         self.classes_ = np.unique(y)
-        self.n_features_in_ = X.shape[1]
         return self
 
     def predict(self, X):
@@ -134,6 +134,9 @@ class KNearestNeighbors(BaseEstimator, ClassifierMixin):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
+        check_is_fitted(self)
+        X, y = check_X_y(X, y)
+        X = check_array(X)
         return np.mean(self.predict(X) == y)
 
 
@@ -174,16 +177,10 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        if self.time_col == 'index':
-            time_col_index = X.index
-        else:
-            time_col_index = X[self.time_col]
-
-        if time_col_index.dtype != 'datetime64[ns]':#pb ici 
-            raise ValueError("The column is not a datetime")
-
-        n_splits = X[time_col_index].to_period("M").nunique() - 1
-        return n_splits
+        X = X.reset_index()
+        if X[self.time_col].dtype != 'datetime64[ns]':
+            raise ValueError("The column is not a datetime")       
+        return pd.to_datetime(X[self.time_col]).dt.to_period("M").nunique() - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -205,16 +202,17 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
-        unique_months = np.sort(X[self.time_col].dt.to_period("M").unique())
+        X = X.reset_index()
+
+        if X[self.time_col].dtype != 'datetime64[ns]':
+            raise ValueError("The time column must be a datetime")
+
+        period = np.sort(X[self.time_col].dt.to_period("M").unique())
 
         n_splits = self.get_n_splits(X, y, groups)
         for i in range(n_splits):
-            train_indices = np.where(
-                X[self.time_col].dt.to_period("M") == unique_months[i]
-            )[0]
-            test_indices = np.where(
-                X[self.time_col].dt.to_period("M") == unique_months[i + 1]
-            )[0]
-            yield train_indices, test_indices
-
-
+            idx_train = np.where(
+                X[self.time_col].dt.to_period("M") == period[i])[0]
+            idx_test = np.where(
+                X[self.time_col].dt.to_period("M") == period[i + 1])[0]
+            yield idx_train, idx_test
