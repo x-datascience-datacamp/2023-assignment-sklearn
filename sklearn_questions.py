@@ -217,6 +217,7 @@ class MonthlySplit(BaseCrossValidator):
             The testing set indices for that split.
         """
 
+        # We get the splits
         n_splits = self.get_n_splits(X)
         Xg = X.reset_index().sort_values(
             by=self.time_col).groupby(
